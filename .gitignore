@@ -1,0 +1,18 @@
+#ignore node modules
+node_modules/
+#ignore logs
+logs/
+#ignore package-lock.json
+package-lock.json
+#ignore .DS_Store
+.DS_Store
+#ignore .vscode
+.vscode/
+#ignore .idea
+.idea/
+# ignore autoCreate.py  
+autoCreate.py
+#ignore test.js
+test.js
+eslint.config.mjs
+#ignore prettier
