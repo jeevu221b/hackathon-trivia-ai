@@ -23,7 +23,7 @@ async function createSession(userId, levelId) {
 
 async function updateSession(sessionId, score, isCompleted) {
   const configs = await Config.find({}).lean()
-  const updated = await Session.findByIdAndUpdate(sessionId, { score: score, ...(!!isCompleted ? { isActive: false } : {}), isCompleted }, { new: true }).lean()
+  const updated = await Session.findByIdAndUpdate(sessionId, { score: score, ...(!isCompleted ? { isActive: false } : {}), isCompleted }, { new: true }).lean()
   if (!updated) {
     throw new Error("Invalid session id")
   }

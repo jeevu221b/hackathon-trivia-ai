@@ -48,7 +48,7 @@ async function subcategoriesValidation(params) {
     throw new Error(commonLang.VALIDATION_ERROR)
   }
   if (validation(params) && !duplicateValidation(params)) {
-    throw new Error(DUPLICATE_ERROR)
+    throw new Error("DUPLICATE_ERROR")
   }
   for (const param of params) {
     const doesCategoryExist = await Category.exists({ _id: param.id })
@@ -98,7 +98,7 @@ async function populateSubCategory({ subcategories, numberOfSubCategories }) {
       if (!(await subcategoriesValidation(subcategories))) {
         throw new Error(commonLang.CATEGORY_NOT_FOUND)
       }
-      for (subcategory of subcategories) {
+      for (const subcategory of subcategories) {
         documents.push(
           await SubCategory.findOneAndUpdate(
             { name: subcategory.subcategory }, //filter
@@ -119,26 +119,26 @@ async function populateSubCategory({ subcategories, numberOfSubCategories }) {
         throw new Error(commonLang.INVALID_INPUT)
       }
 
-      for (subcategory of numberOfSubCategories) {
-        const messages = []
+      for (const subcategory of numberOfSubCategories) {
+        let messages = []
         subcategories = await SubCategory.find({ category: subcategory.id }).lean()
         if (subcategories.length != 0) {
-          category = (await Category.findOne({ _id: subcategories[0].category })).name
+          const category = (await Category.findOne({ _id: subcategories[0].category })).name
           subcategories = subcategories.map((item) => item.name)
-          subcategoryprompt = (await promptLoader()).subcategoryPrompt
+          let subcategoryprompt = (await promptLoader()).subcategoryPrompt
           subcategoryprompt = subcategoryPromptFormatter(subcategoryprompt, category, subcategories, subcategory.number)
           messages.push(apiMessageFormat({ role: claudeMessageRoles.user, prompt: subcategoryprompt }))
           messages.push(await claudeApi(messages))
           messages = messages.filter((item) => item.role === "assistant")
-          api_subcategory = JSON.parse(messages[0].content.filter((item) => item.type === "text")[0].text)
+          const api_subcategory = JSON.parse(messages[0].content.filter((item) => item.type === "text")[0].text)
           if (!Array.isArray(category)) {
             throw new Error("Category must be an array of objects")
           }
-          for (title of api_subcategory) {
+          for (const title of api_subcategory) {
             if (!title.title) {
               throw new Error("Invalid subcategory object")
             }
-            ifSubCategoryExist = await SubCategory.findOne({ name: title.title })
+            let ifSubCategoryExist = await SubCategory.findOne({ name: title.title })
             if (!ifSubCategoryExist) {
               data.push(
                 await SubCategory.create({

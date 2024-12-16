@@ -15,7 +15,7 @@ async function subcategoryIdValidation(id) {
   if (!mongodb.ObjectId.isValid(id)) {
     return false
   }
-  data = await Subcategory.findOne({ _id: id })
+  const data = await Subcategory.findOne({ _id: id })
   if (!data) {
     return false
   }
@@ -36,9 +36,10 @@ function levelValidation(level) {
   return true
 }
 
+// eslint-disable-next-line no-unused-vars
 async function populateQuestion({ subcategoryId, level, user_id, autofill = true, override = [] }) {
   try {
-    const api_message = []
+    let api_message = []
 
     if (!subcategoryId || !level) {
       throw new Error(commonLang.MISSING_PARAM)
@@ -66,9 +67,9 @@ async function populateQuestion({ subcategoryId, level, user_id, autofill = true
     // //2. if level does not exist in db
     if ((!levelExistsInDb && level != 1) || override.includes(level)) {
       for (let i = 1; i <= level; i++) {
-        prompt = questionPromptFormatter(questionPrompt, subcategory.name, i)
+        let prompt = questionPromptFormatter(questionPrompt, subcategory.name, i)
         // If level exists in db, fetch all the questions from db
-        levelExists = await Level.findOne({ level: i, subcategory: subcategoryId })
+        let levelExists = await Level.findOne({ level: i, subcategory: subcategoryId })
 
         //If level exists in db and is not in override, fetch all the questions from db and send in response
         if (levelExists && !override.includes(i)) {
@@ -94,6 +95,8 @@ async function populateQuestion({ subcategoryId, level, user_id, autofill = true
       let questions
       try {
         questions = JSON.parse(msg.content[0].text)
+
+        // eslint-disable-next-line no-unused-vars
       } catch (err) {
         throw new Error("Error parsing the question", msg.content[0])
       }

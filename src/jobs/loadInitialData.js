@@ -3,6 +3,8 @@ const SubCategory = require("../models/Subcategory")
 const Config = require("../models/Config")
 const Level = require("../models/Level")
 const Score = require("../models/Score")
+
+// eslint-disable-next-line no-unused-vars
 const { ObjectId } = require("mongodb")
 const { scoreToStarsConverter, getSubcategoryScore } = require("../utils/helper")
 
@@ -72,7 +74,7 @@ async function loadInitialData(userId) {
       const score = scores.filter((_score) => _score.subcategory.equals(level.subcategory))[0]
       if (isUniqueLevel && score) {
         const user = score.levels.filter((_score) => _score.userId.equals(userId))
-        for (userLevel of user) {
+        for (const userLevel of user) {
           totalScore += await scoreToStarsConverter(userLevel.score)
         }
       }
