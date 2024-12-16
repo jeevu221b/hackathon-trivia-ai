@@ -41,7 +41,7 @@ app.post("/login", (req, res) => {
   if (!email) {
     res.status(400).send({ error: "Invalid input :(" })
   }
-  const token = jwt.sign(userData, process.env.SECRET_KEY)
+  const token = jwt.sign(userData, process.env.SECRET_KEY, { expiresIn: "15d" })
   return res.status(200).send({ token })
 })
 
