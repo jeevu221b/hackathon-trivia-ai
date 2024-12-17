@@ -23,6 +23,7 @@ function logRequests(req, res, next) {
   console.log(`[${new Date().toLocaleString()}] ${req.method} ${req.url}`)
   if (req.method === "POST" || req.method === "PUT" || req.method === "PATCH") {
     console.log("Request body:", req.body)
+    console.log("Request headers:", req.headers)
   }
   next() // Call next middleware in chain
 }

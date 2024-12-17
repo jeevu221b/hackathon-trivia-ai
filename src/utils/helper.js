@@ -255,7 +255,7 @@ function decodeToken(req, res, next) {
     next()
     // eslint-disable-next-line no-unused-vars
   } catch (error) {
-    res.status(500).json({ error: "Invalid token :(" })
+    res.status(500).send({ error: "Invalid token :(" })
   }
 }
 
