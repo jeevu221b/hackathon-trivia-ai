@@ -35,7 +35,7 @@ router.get("/get/totalscore", async (req, res) => {
   }
 })
 
-router.get("/get/leaderboard", decodeToken, async (req, res) => {
+router.get("/get/leaderboard", async (req, res) => {
   try {
     const response = await getLeaderBoard()
     res.status(200).send(response)

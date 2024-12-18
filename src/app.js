@@ -8,6 +8,7 @@ const subcategoryRoutes = require("./routes/subcategoryRoutes")
 const questionRoutes = require("./routes/questionRoutes")
 const sessionRoutes = require("./routes/sessionRoutes")
 const dataRoutes = require("./routes/dataRoutes")
+const { decodeToken } = require("./utils/helper")
 
 env.config()
 
@@ -23,19 +24,19 @@ function logRequests(req, res, next) {
   console.log(`[${new Date().toLocaleString()}] ${req.method} ${req.url}`)
   if (req.method === "POST" || req.method === "PUT" || req.method === "PATCH") {
     console.log("Request body:", req.body)
-    console.log("Request headers:", req.headers)
   }
+  console.log("Request headers:", req.headers)
   next() // Call next middleware in chain
 }
 
 app.use(logRequests)
 
 // Use the route files as middleware
-app.use("/api", categoryRoutes)
-app.use("/api", subcategoryRoutes)
-app.use("/api", questionRoutes)
-app.use("/api", sessionRoutes)
-app.use("/api", dataRoutes)
+app.use("/api", decodeToken, categoryRoutes)
+app.use("/api", decodeToken, subcategoryRoutes)
+app.use("/api", decodeToken, questionRoutes)
+app.use("/api", decodeToken, sessionRoutes)
+app.use("/api", decodeToken, dataRoutes)
 app.post("/login", (req, res) => {
   const { email } = req.body
   const userData = { email }
