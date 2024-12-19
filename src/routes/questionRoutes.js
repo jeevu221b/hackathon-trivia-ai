@@ -14,10 +14,10 @@ router.post("/create/question", async (req, res) => {
       throw new Error("Invalid paramas")
     }
     const response = await createQuestions(body.subcategoryId, body.level, body.questions)
-    res.status(200).send(response)
+    return res.status(200).send(response)
   } catch (error) {
     console.error(error)
-    res.status(error.statusCode || 400).send(error.message)
+    return res.status(error.statusCode || 400).send(error.message)
   }
 })
 
@@ -28,10 +28,10 @@ router.post("/get/question", async (req, res) => {
       throw new Error("Invalid id")
     }
     const response = await getLevelQuestions(body.levelId)
-    res.status(200).send(shuffleArray(response, body.levelId))
+    return res.status(200).send(shuffleArray(response, body.levelId))
   } catch (error) {
     console.error(error)
-    res.status(error.statusCode || 400).send(error.message)
+    return res.status(error.statusCode || 400).send(error.message)
   }
 })
 
@@ -42,10 +42,10 @@ router.post("/create/facts", async (req, res) => {
       throw new Error("Invalid input")
     }
     const response = await createFacts(body.subcategoryId, body.facts)
-    res.status(200).send(response)
+    return res.status(200).send(response)
   } catch (error) {
     console.log(error)
-    res.status(error.status || 400).send(error.message)
+    return res.status(error.status || 400).send(error.message)
   }
 })
 

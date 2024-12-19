@@ -1,14 +1,9 @@
 const express = require("express")
 const cors = require("cors")
 const env = require("dotenv")
-const jwt = require("jsonwebtoken")
 const helmet = require("helmet")
-const categoryRoutes = require("./routes/categoryRoutes")
-const subcategoryRoutes = require("./routes/subcategoryRoutes")
-const questionRoutes = require("./routes/questionRoutes")
-const sessionRoutes = require("./routes/sessionRoutes")
-const dataRoutes = require("./routes/dataRoutes")
 const { decodeToken } = require("./utils/helper")
+const baseRoute = require("./routes/baseRoute")
 
 env.config()
 
@@ -31,20 +26,17 @@ function logRequests(req, res, next) {
 
 app.use(logRequests)
 
-// Use the route files as middleware
-app.use("/api", decodeToken, categoryRoutes)
-app.use("/api", decodeToken, subcategoryRoutes)
-app.use("/api", decodeToken, questionRoutes)
-app.use("/api", decodeToken, sessionRoutes)
-app.use("/api", decodeToken, dataRoutes)
-app.post("/login", (req, res) => {
-  const { email } = req.body
-  const userData = { email }
-  if (!email) {
-    res.status(400).send({ error: "Invalid input :(" })
+const nonAuthRoutes = ["/api/login"]
+
+app.use((req, res, next) => {
+  if (nonAuthRoutes.includes(req.url)) {
+    next()
+  } else {
+    decodeToken(req, res, next)
   }
-  const token = jwt.sign(userData, process.env.SECRET_KEY, { expiresIn: "15d" })
-  return res.status(200).send({ token })
 })
+
+// Use the route files as middleware
+app.use("/api", baseRoute)
 
 module.exports = app

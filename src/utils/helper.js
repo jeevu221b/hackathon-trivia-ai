@@ -5,10 +5,14 @@ const Subcategory = require("../models/Subcategory")
 const Difficulty = require("../models/Difficulty")
 const Score = require("../models/Score")
 const Level = require("../models/Level")
+const env = require("dotenv")
+
 // eslint-disable-next-line no-unused-vars
 const { ObjectId } = require("mongodb")
 const Leaderboard = require("../models/Leaderboard")
 const jwt = require("jsonwebtoken")
+const User = require("../models/User")
+env.config()
 
 function apiError(error) {
   if (!error.message) {
@@ -247,16 +251,21 @@ async function createFacts(subcategoryId, facts) {
 function decodeToken(req, res, next) {
   const token = req.headers.authorization
   if (!token) {
-    res.status(500).send({ error: "You're not authenticated :(" })
+    return res.status(500).send({ error: "You're not authenticated :(" })
   }
   try {
     const data = jwt.verify(token, process.env.SECRET_KEY)
-    req.body.email = data
+    req.body.internaluserId = data.userId
     next()
     // eslint-disable-next-line no-unused-vars
   } catch (error) {
-    res.status(500).send({ error: "Invalid token :(" })
+    return res.status(500).send({ error: "Invalid token :(" })
   }
+}
+
+async function createUser(email) {
+  const user = await User.findOneAndUpdate({ email }, { email }, { new: true, upsert: true })
+  return user
 }
 
 module.exports = {
@@ -277,4 +286,5 @@ module.exports = {
   createQuestions,
   createFacts,
   decodeToken,
+  createUser,
 }

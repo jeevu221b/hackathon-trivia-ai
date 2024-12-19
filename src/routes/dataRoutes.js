@@ -1,47 +1,47 @@
 const express = require("express")
 const mongodb = require("mongodb")
 const { loadInitialData } = require("../jobs/loadInitialData")
-const { getTotalScore, getLeaderBoard, decodeToken } = require("../utils/helper")
+const { getLeaderBoard, getSubcategoryScore } = require("../utils/helper")
 const router = express.Router()
 
 router.post("/data", async (req, res) => {
   try {
     const body = req.body
-    if (!body.userId) {
+    if (!body.internaluserId) {
       throw new Error("Invalid input")
     }
-    const response = await loadInitialData(body.userId)
-    res.status(200).send(response)
+    const response = await loadInitialData(body.internaluserId)
+    return res.status(200).send(response)
   } catch (error) {
     console.error(error)
-    res.status(error.statusCode || 400).send(error.message)
+    return res.status(error.statusCode || 400).send(error.message)
   }
 })
 
 router.get("/get/totalscore", async (req, res) => {
   try {
     const body = req.body
-    if (!body.subcategoryId || !body.userId) {
+    if (!body.subcategoryId || !body.internaluserId) {
       throw new Error("Invalid input")
     }
-    if (!mongodb.ObjectId.isValid(body.subcategoryId) || !mongodb.ObjectId.isValid(body.userId)) {
+    if (!mongodb.ObjectId.isValid(body.subcategoryId) || !mongodb.ObjectId.isValid(body.internaluserId)) {
       throw new Error("Invalid id")
     }
-    const response = await getTotalScore(body.subcategoryId, body.userId)
-    res.status(200).send(response)
+    const response = await getSubcategoryScore(body.subcategoryId, body.internaluserId)
+    return res.status(200).send({ score: response })
   } catch (error) {
     console.error(error)
-    res.status(error.statusCode || 400).send(error.message)
+    return res.status(error.statusCode || 400).send(error.message)
   }
 })
 
 router.get("/get/leaderboard", async (req, res) => {
   try {
     const response = await getLeaderBoard()
-    res.status(200).send(response)
+    return res.status(200).send(response)
   } catch (error) {
     console.log(error)
-    res.status(error.statusCode || 400).send(error.message)
+    return res.status(error.statusCode || 400).send(error.message)
   }
 })
 

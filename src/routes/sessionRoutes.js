@@ -7,17 +7,17 @@ const router = express.Router()
 router.post("/create/session", async (req, res) => {
   try {
     const body = req.body
-    if (!body.userId || !body.levelId) {
+    if (!body.internaluserId || !body.levelId) {
       throw new Error("Invalid input")
     }
-    if (!mongodb.ObjectId.isValid(body.userId) || !mongodb.ObjectId.isValid(body.levelId)) {
+    if (!mongodb.ObjectId.isValid(body.internaluserId) || !mongodb.ObjectId.isValid(body.levelId)) {
       throw new Error("Invalid id")
     }
-    const response = await createSession(body.userId, body.levelId)
-    res.status(200).send({ sessionId: response })
+    const response = await createSession(body.internaluserId, body.levelId)
+    return res.status(200).send({ sessionId: response })
   } catch (error) {
     console.error(error)
-    res.status(error.statusCode || 400).send(error.message)
+    return res.status(error.statusCode || 400).send(error.message)
   }
 })
 
@@ -36,10 +36,10 @@ router.post("/update/session", async (req, res) => {
       throw new Error("'isCompleted' should be a boolean value")
     }
     const response = await updateSession(body.sessionId, body.score, body.isCompleted)
-    res.status(200).send(response)
+    return res.status(200).send(response)
   } catch (error) {
     console.error(error)
-    res.status(error.statusCode || 400).send(error.message)
+    return res.status(error.statusCode || 400).send(error.message)
   }
 })
 
@@ -53,10 +53,10 @@ router.post("/expire/session", async (req, res) => {
       throw new Error("Invalid id")
     }
     const response = await expireSession(body.sessionId)
-    res.status(200).send(response)
+    return res.status(200).send(response)
   } catch (error) {
     console.error(error)
-    res.status(error.statusCode || 400).send(error.message)
+    return res.status(error.statusCode || 400).send(error.message)
   }
 })
 

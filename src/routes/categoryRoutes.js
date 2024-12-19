@@ -10,10 +10,10 @@ router.post("/create/category", async (req, res) => {
       throw new Error("Invalid input")
     }
     const response = await populateCategory({ categories: body.categories, numberOfCategories: body.numberOfCategories })
-    res.status(200).send(response)
+    return res.status(200).send(response)
   } catch (error) {
     console.error(error)
-    res.status(error.statusCode || 400).send(error.message)
+    return res.status(error.statusCode || 400).send(error.message)
   }
 })
 
