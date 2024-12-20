@@ -255,6 +255,7 @@ function decodeToken(req, res, next) {
   }
   try {
     const data = jwt.verify(token, process.env.SECRET_KEY)
+    console.log(data, "data")
     req.body.internaluserId = data.userId
     next()
     // eslint-disable-next-line no-unused-vars
@@ -264,7 +265,7 @@ function decodeToken(req, res, next) {
 }
 
 async function createUser(email) {
-  const user = await User.findOneAndUpdate({ email }, { email }, { new: true, upsert: true })
+  const user = await User.findOneAndUpdate({ email }, { email, username: email }, { new: true, upsert: true })
   return user
 }
 

@@ -7,6 +7,7 @@ const router = express.Router()
 router.post("/data", async (req, res) => {
   try {
     const body = req.body
+    console.log(body.internaluserId)
     if (!body.internaluserId) {
       throw new Error("Invalid input")
     }
