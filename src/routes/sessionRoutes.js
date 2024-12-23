@@ -2,7 +2,6 @@ const mongodb = require("mongodb")
 const express = require("express")
 const { createSession, updateSession, expireSession } = require("../jobs/createSession")
 
-
 const router = express.Router()
 
 router.post("/create/session", async (req, res) => {
