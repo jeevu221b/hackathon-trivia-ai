@@ -77,6 +77,7 @@ async function getUserTotalScore(userId) {
   if (!userId) {
     throw new Error("Invalid input")
   }
+  const username = (await User.findOne({ _id: userId }, { username: 1, _id: 0 })).username
   let totalScore = 0
   let totalStars = 0
   const scores = await Score.find({}).lean()
@@ -89,28 +90,31 @@ async function getUserTotalScore(userId) {
     }
   }
 
-  const leaderboard = await Leaderboard.findOneAndUpdate(
-    {
-      users: {
-        $elemMatch: {
-          user: userId,
-        },
-      },
-    },
-    {
-      $set: {
-        "users.$.score": totalScore,
-        "users.$.stars": totalStars,
-      },
-    },
-    {
-      new: true,
-    }
-  )
+  const leaderboard = await Leaderboard.findOne()
 
-  if (!leaderboard) {
-    console.log("No leaderboard entry found for the given userId")
-    await Leaderboard.create({ users: [{ user: userId, score: totalScore, stars: totalStars }] })
+  if (leaderboard) {
+    const userIndex = leaderboard.users.findIndex((user) => user.user.equals(userId))
+
+    if (userIndex !== -1) {
+      // User exists in the leaderboard, update the score and stars
+      leaderboard.users[userIndex].score = totalScore
+      leaderboard.users[userIndex].stars = totalStars
+    } else {
+      // User doesn't exist in the leaderboard, add a new entry
+      leaderboard.users.push({
+        user: userId,
+        username,
+        score: totalScore,
+        stars: totalStars,
+      })
+    }
+
+    await leaderboard.save()
+  } else {
+    // No leaderboard document exists, create a new one with the user entry
+    await Leaderboard.create({
+      users: [{ user: userId, username, score: totalScore, stars: totalStars }],
+    })
   }
 }
 

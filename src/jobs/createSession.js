@@ -6,8 +6,7 @@ const Config = require("../models/Config")
 
 async function createSession(userId, levelId) {
   const level = await Level.findById({ _id: levelId }, { level: 1 })
-  const score = await Score.findOne({ "levels.levelId": levelId, "levels.userId": userId })
-  if (!level || !score) {
+  if (!level) {
     throw new Error("Invalid level")
   }
   const sessionData = {
