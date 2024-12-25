@@ -97,6 +97,7 @@ async function getUserTotalScore(userId) {
 
     if (userIndex !== -1) {
       // User exists in the leaderboard, update the score and stars
+      leaderboard.users[userIndex].username = username
       leaderboard.users[userIndex].score = totalScore
       leaderboard.users[userIndex].stars = totalStars
     } else {
@@ -171,7 +172,6 @@ async function isLevelUnlockedForUser(userId, levelId) {
   const scores = await Score.findOne({ subcategory: level.subcategory })
   if (scores) {
     for (const userScore of scores.levels) {
-      console.log(userScore, "userScore")
       if ((userId == userScore.userId && levelId == userScore.levelId) || userScore.level == 1 || userScore.level == 2) {
         return true
       }
@@ -259,7 +259,6 @@ function decodeToken(req, res, next) {
   }
   try {
     const data = jwt.verify(token, process.env.SECRET_KEY)
-    console.log(data, "data")
     req.body.internaluserId = data.userId
     next()
     // eslint-disable-next-line no-unused-vars
@@ -269,8 +268,13 @@ function decodeToken(req, res, next) {
 }
 
 async function createUser(email) {
-  const user = await User.findOneAndUpdate({ email }, { email, username: email }, { new: true, upsert: true })
-  return user
+  const user = await User.findOne({ email })
+  if (user) {
+    return user._id
+  } else {
+    const newUser = await User.create({ email, username: email })
+    return newUser._id
+  }
 }
 
 module.exports = {
