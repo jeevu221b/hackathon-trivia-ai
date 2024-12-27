@@ -1,7 +1,7 @@
 const Session = require("../models/Session")
 const Level = require("../models/Level")
 const Score = require("../models/Score")
-const { scoreToStarsConverter, getLevelInfo, getUserTotalScore, isUniqueLevel } = require("../utils/helper")
+const { scoreToStarsConverter, getLevelInfo, updateLeaderboardScore, isUniqueLevel, getLeaderBoard, addScoreToLeaderboard, addUserToLeaderboard } = require("../utils/helper")
 const Config = require("../models/Config")
 
 async function createSession(userId, levelId) {
@@ -70,6 +70,7 @@ async function updateSession(sessionId, score, isCompleted) {
             ],
           }
         )
+        await addScoreToLeaderboard(updated.userId, score - existingScore.levels[0].score)
       } else {
         updated.isBestScore = false
       }
@@ -94,6 +95,7 @@ async function updateSession(sessionId, score, isCompleted) {
           upsert: true,
         }
       )
+      await addUserToLeaderboard(updated.userId, score)
     }
   }
   const scores = await Score.findOne({
@@ -157,7 +159,8 @@ async function updateSession(sessionId, score, isCompleted) {
   }
 
   updated.levels = levelInfo.levels
-  await getUserTotalScore(updated.userId)
+  // const prev_leaderboard = await getLeaderBoard()
+  // await updateLeaderboardScore(updated.userId, prev_leaderboard)
   return updated
 }
 

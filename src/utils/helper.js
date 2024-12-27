@@ -73,7 +73,7 @@ async function getSubcategoryScore(subcategoryId, userId) {
   return totalScore
 }
 
-async function getUserTotalScore(userId) {
+async function updateLeaderboardScore(userId, prev_leaderboard) {
   if (!userId) {
     throw new Error("Invalid input")
   }
@@ -91,7 +91,6 @@ async function getUserTotalScore(userId) {
   }
 
   const leaderboard = await Leaderboard.findOne()
-
   if (leaderboard) {
     const userIndex = leaderboard.users.findIndex((user) => user.user.equals(userId))
 
@@ -117,6 +116,8 @@ async function getUserTotalScore(userId) {
       users: [{ user: userId, username, score: totalScore, stars: totalStars }],
     })
   }
+  console.log(prev_leaderboard, "Previous Leaderboard")
+  console.log(await getLeaderBoard(userId), "Updated Leaderboard")
 }
 
 async function getLevelQuestions(levelId) {
@@ -146,17 +147,27 @@ async function getLevelInfo(userId, subcategoryId) {
   return bigData
 }
 
-async function getLeaderBoard() {
+async function getLeaderBoard(currentUser) {
   const leaderboardData = []
   const leaderboard = await Leaderboard.findOne({}, { users: 1 })
   if (leaderboard) {
     for (const data of leaderboard.users) {
-      leaderboardData.push({
-        userId: data.user,
-        username: data.username,
-        score: data.score,
-        stars: data.stars,
-      })
+      if (data.user.equals(currentUser)) {
+        leaderboardData.push({
+          userId: data.user,
+          username: data.username,
+          score: data.score,
+          stars: data.stars,
+          currentUser: true,
+        })
+      } else {
+        leaderboardData.push({
+          userId: data.user,
+          username: data.username,
+          score: data.score,
+          stars: data.stars,
+        })
+      }
     }
 
     return leaderboardData.sort((a, b) => b.score - a.score)
@@ -277,6 +288,72 @@ async function createUser(email) {
   }
 }
 
+async function getUserProfile(userId) {
+  if (!userId) {
+    throw new Error("Invalid input")
+  }
+  const userProfile = []
+  let totalScore = 0
+  let totalStars = 0
+  const scores = await Score.find({}).lean()
+  for (const score of scores) {
+    for (const level of score.levels) {
+      if (level.userId.equals(userId)) {
+        totalScore += level.score
+        totalStars += await scoreToStarsConverter(level.score)
+      }
+    }
+  }
+  const { username, rank } = await getLeaderBoardRank(userId)
+  userProfile.push({ username, score: totalScore, stars: totalStars, rank })
+  return userProfile
+}
+
+async function getLeaderBoardRank(userId) {
+  const sortedLeaderboard = (await Leaderboard.findOne({}, { users: 1, _id: 0 })).users.sort((a, b) => b.score - a.score)
+  for (let index = 0; index <= sortedLeaderboard.length - 1; index++) {
+    if (sortedLeaderboard[index].user.equals(userId)) {
+      return { username: sortedLeaderboard[index].username, rank: index + 1 }
+    }
+  }
+}
+
+async function addScoreToLeaderboard(userId, newScore) {
+  const user = await User.findOne({ _id: userId }, { username: 1, _id: 0 })
+  const leaderboard = await Leaderboard.findOne()
+  // const sortedLeaderboard = leaderboard.users.sort((a, b) => b.score - a.score)
+  // for (let index = 0; index <= sortedLeaderboard.length - 1; index++) {
+  //   if (sortedLeaderboard[index].user.equals(userId)) {
+  //     console.log(index)
+  //   }
+  // }
+  if (leaderboard) {
+    const userIndex = leaderboard.users.findIndex((user) => user.user.equals(userId))
+
+    if (userIndex !== -1) {
+      // User exists in the leaderboard, update the score and stars
+      leaderboard.users[userIndex].username = user.username
+      leaderboard.users[userIndex].score += newScore
+      leaderboard.users[userIndex].stars += await scoreToStarsConverter(newScore)
+    }
+    await leaderboard.save()
+  }
+  console.log(await getLeaderBoard(userId), "Updated Leaderboard")
+}
+
+async function addUserToLeaderboard(userId, score) {
+  const user = await User.findOne({ _id: userId }, { username: 1, _id: 0 })
+  const leaderboard = await Leaderboard.findOne()
+  if (leaderboard) {
+    leaderboard.users.push({
+      user: userId,
+      username: user.username,
+      score: score,
+      stars: await scoreToStarsConverter(score),
+    })
+    await leaderboard.save()
+  }
+}
 module.exports = {
   apiMessageFormat,
   parsedQuestions,
@@ -286,7 +363,7 @@ module.exports = {
   scoreToStarsConverter,
   getSubcategoryScore,
   getLevelQuestions,
-  getUserTotalScore,
+  updateLeaderboardScore,
   getLevelInfo,
   getLeaderBoard,
   isUniqueLevel,
@@ -296,4 +373,8 @@ module.exports = {
   createFacts,
   decodeToken,
   createUser,
+  getUserProfile,
+  getLeaderBoardRank,
+  addScoreToLeaderboard,
+  addUserToLeaderboard,
 }
