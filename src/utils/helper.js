@@ -73,53 +73,6 @@ async function getSubcategoryScore(subcategoryId, userId) {
   return totalScore
 }
 
-async function updateLeaderboardScore(userId, prev_leaderboard) {
-  if (!userId) {
-    throw new Error("Invalid input")
-  }
-  const username = (await User.findOne({ _id: userId }, { username: 1, _id: 0 })).username
-  let totalScore = 0
-  let totalStars = 0
-  const scores = await Score.find({}).lean()
-  for (const score of scores) {
-    for (const level of score.levels) {
-      if (level.userId.equals(userId)) {
-        totalScore += level.score
-        totalStars += await scoreToStarsConverter(level.score)
-      }
-    }
-  }
-
-  const leaderboard = await Leaderboard.findOne()
-  if (leaderboard) {
-    const userIndex = leaderboard.users.findIndex((user) => user.user.equals(userId))
-
-    if (userIndex !== -1) {
-      // User exists in the leaderboard, update the score and stars
-      leaderboard.users[userIndex].username = username
-      leaderboard.users[userIndex].score = totalScore
-      leaderboard.users[userIndex].stars = totalStars
-    } else {
-      // User doesn't exist in the leaderboard, add a new entry
-      leaderboard.users.push({
-        user: userId,
-        username,
-        score: totalScore,
-        stars: totalStars,
-      })
-    }
-
-    await leaderboard.save()
-  } else {
-    // No leaderboard document exists, create a new one with the user entry
-    await Leaderboard.create({
-      users: [{ user: userId, username, score: totalScore, stars: totalStars }],
-    })
-  }
-  console.log(prev_leaderboard, "Previous Leaderboard")
-  console.log(await getLeaderBoard(userId), "Updated Leaderboard")
-}
-
 async function getLevelQuestions(levelId) {
   const questions = await Level.findOne({ _id: levelId }).lean()
   if (questions) {
@@ -426,7 +379,6 @@ module.exports = {
   scoreToStarsConverter,
   getSubcategoryScore,
   getLevelQuestions,
-  updateLeaderboardScore,
   getLevelInfo,
   getLeaderBoard,
   isUniqueLevel,

@@ -4,11 +4,16 @@ const Score = require("../models/Score")
 const { scoreToStarsConverter, getLevelInfo, addScoreToLeaderboard, addUserToLeaderboard, leaderboardClimbing } = require("../utils/helper")
 const Config = require("../models/Config")
 const Leaderboard = require("../models/Leaderboard")
+const { SESSION_ALREADY_COMPLETED, INVALID_SESSION_ID, INVALID_LEVEL } = require("../config/errorLang")
 
-async function createSession(userId, levelId) {
+async function createSession(userId, levelId, multiplayer) {
+  if (multiplayer) {
+    const session = await Session.create({ userId: userId, isActive: true, isCompleted: false })
+    return session._id
+  }
   const level = await Level.findById({ _id: levelId }, { level: 1 })
   if (!level) {
-    throw new Error("Invalid level")
+    throw new Error(INVALID_LEVEL)
   }
   const sessionData = {
     userId: userId,
@@ -23,9 +28,13 @@ async function createSession(userId, levelId) {
 
 async function updateSession(sessionId, score, isCompleted) {
   const configs = await Config.find({}).lean()
+  const beforeUpdating = await Session.findByIdAndUpdate(sessionId).lean()
+  if (beforeUpdating.isCompleted) {
+    throw new Error(SESSION_ALREADY_COMPLETED)
+  }
   const updated = await Session.findByIdAndUpdate(sessionId, { score: score, ...(!isCompleted ? { isActive: false } : {}), isCompleted }, { new: true }).lean()
   if (!updated) {
-    throw new Error("Invalid session id")
+    throw new Error(INVALID_SESSION_ID)
   }
   const oldLeaderBoard = (await Leaderboard.findOne({}, { users: 1, _id: 0 })).users.sort((a, b) => b.score - a.score)
   updated.requiredStars = ""

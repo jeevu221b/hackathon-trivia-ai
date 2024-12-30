@@ -8,11 +8,11 @@ const SessionSchema = new mongoose.Schema(
     },
     level: {
       type: Number,
-      required: true,
+      required: false,
     },
     levelId: {
       type: mongoose.Schema.Types.ObjectId,
-      required: true,
+      required: false,
     },
     score: {
       type: Number,

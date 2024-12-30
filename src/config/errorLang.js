@@ -7,8 +7,10 @@ const commonLang = {
   NUMBER_OF_CATEGORIES_NOT_FOUND: "Number of categories not found",
   ARRAY_EXPECTED: "Array expected",
   INVALID_ID: "Invalid ID",
+  INVALID_SESSION_ID: "Invalid session id",
   INVALID_LEVEL: "Invalid Level",
   MISSING_PARAM: "Both Subcategory ID and Level is required",
+  SESSION_ALREADY_COMPLETED: "Session is already completed",
 }
 
 module.exports = commonLang

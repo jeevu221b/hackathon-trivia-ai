@@ -2,19 +2,18 @@ const mongodb = require("mongodb")
 const express = require("express")
 const { createSession, updateSession, expireSession } = require("../jobs/createSession")
 
-
 const router = express.Router()
 
 router.post("/create/session", async (req, res) => {
   try {
     const body = req.body
-    if (!body.internaluserId || !body.levelId) {
+    if (!body.internaluserId) {
       throw new Error("Invalid input")
     }
-    if (!mongodb.ObjectId.isValid(body.internaluserId) || !mongodb.ObjectId.isValid(body.levelId)) {
+    if (!mongodb.ObjectId.isValid(body.internaluserId)) {
       throw new Error("Invalid id")
     }
-    const response = await createSession(body.internaluserId, body.levelId)
+    const response = await createSession(body.internaluserId, body.levelId, body.multiplayer)
     return res.status(200).send({ sessionId: response })
   } catch (error) {
     console.error(error)
