@@ -131,8 +131,10 @@ async function getLevelQuestions(levelId) {
 async function getLevelInfo(userId, subcategoryId) {
   const bigData = { levels: [] }
   const scores = await Score.findOne({ subcategory: subcategoryId }).lean()
+  let totalStars = 0
   for (const level of scores.levels) {
     if (level.userId.equals(userId)) {
+      totalStars += await scoreToStarsConverter(level.score)
       bigData["levels"].push({
         level: level.level,
         id: level.levelId,
@@ -143,6 +145,11 @@ async function getLevelInfo(userId, subcategoryId) {
         star: await scoreToStarsConverter(level.score),
       })
     }
+  }
+  const isUniqLevel = await isUniqueLevel(4)
+  if (totalStars >= isUniqLevel.starsRequired) {
+    const getIdOfUniqLevel = await Level.findOne({ subcategory: subcategoryId, level: 4 }, { _id: true, level: true })
+    if (getIdOfUniqLevel) bigData["levels"].push({ level: 4, id: getIdOfUniqLevel._id, isUnlocked: true, subcategoryId })
   }
   return bigData
 }
@@ -349,6 +356,67 @@ async function addUserToLeaderboard(userId, score) {
     await leaderboard.save()
   }
 }
+async function leaderboardClimbing(userId, oldLeaderBoard) {
+  const leaderboardDetail = []
+  const oldRankIndex = oldLeaderBoard.findIndex((user) => user.user.equals(userId))
+  const sortedLeaderboard = (await Leaderboard.findOne({}, { users: 1, _id: 0 })).users.sort((a, b) => b.score - a.score)
+
+  for (let newRankIndex = 0; newRankIndex <= sortedLeaderboard.length - 1; newRankIndex++) {
+    if (sortedLeaderboard[newRankIndex].user.equals(userId) && newRankIndex < 10) {
+      if (oldRankIndex != newRankIndex && newRankIndex == 0) {
+        leaderboardDetail.push(
+          { userId: userId, username: sortedLeaderboard[newRankIndex].username, score: sortedLeaderboard[newRankIndex].score, star: sortedLeaderboard[newRankIndex].stars, currentUser: true },
+          {
+            userId: sortedLeaderboard[newRankIndex + 1].user,
+            username: sortedLeaderboard[newRankIndex + 1].username,
+            score: sortedLeaderboard[newRankIndex + 1].score,
+            star: sortedLeaderboard[newRankIndex + 1].stars,
+          },
+          {
+            userId: sortedLeaderboard[newRankIndex + 2].user,
+            username: sortedLeaderboard[newRankIndex + 2].username,
+            score: sortedLeaderboard[newRankIndex + 2].score,
+            star: sortedLeaderboard[newRankIndex + 2].stars,
+          }
+        )
+      } else if (oldRankIndex != newRankIndex && newRankIndex == 8) {
+        leaderboardDetail.push(
+          {
+            userId: sortedLeaderboard[newRankIndex - 2].user,
+            username: sortedLeaderboard[newRankIndex - 2].username,
+            score: sortedLeaderboard[newRankIndex - 2].score,
+            star: sortedLeaderboard[newRankIndex - 2].stars,
+          },
+          {
+            userId: sortedLeaderboard[newRankIndex - 1].user,
+            username: sortedLeaderboard[newRankIndex - 1].username,
+            score: sortedLeaderboard[newRankIndex - 1].score,
+            star: sortedLeaderboard[newRankIndex - 1].stars,
+          },
+          { userId: userId, username: sortedLeaderboard[newRankIndex].username, score: sortedLeaderboard[newRankIndex].score, star: sortedLeaderboard[newRankIndex].stars, currentUser: true }
+        )
+      } else if (oldRankIndex != newRankIndex) {
+        leaderboardDetail.push(
+          {
+            userId: sortedLeaderboard[newRankIndex - 1].user,
+            username: sortedLeaderboard[newRankIndex - 1].username,
+            score: sortedLeaderboard[newRankIndex - 1].score,
+            star: sortedLeaderboard[newRankIndex - 1].stars,
+          },
+          { userId: userId, username: sortedLeaderboard[newRankIndex].username, score: sortedLeaderboard[newRankIndex].score, star: sortedLeaderboard[newRankIndex].stars, currentUser: true },
+          {
+            userId: sortedLeaderboard[newRankIndex + 1].user,
+            username: sortedLeaderboard[newRankIndex + 1].username,
+            score: sortedLeaderboard[newRankIndex + 1].score,
+            star: sortedLeaderboard[newRankIndex + 1].stars,
+          }
+        )
+      }
+    }
+  }
+  return leaderboardDetail
+}
+
 module.exports = {
   apiMessageFormat,
   parsedQuestions,
@@ -372,4 +440,5 @@ module.exports = {
   getLeaderBoardRank,
   addScoreToLeaderboard,
   addUserToLeaderboard,
+  leaderboardClimbing,
 }

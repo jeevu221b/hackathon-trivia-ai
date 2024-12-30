@@ -1,8 +1,9 @@
 const Session = require("../models/Session")
 const Level = require("../models/Level")
 const Score = require("../models/Score")
-const { scoreToStarsConverter, getLevelInfo, isUniqueLevel, addScoreToLeaderboard, addUserToLeaderboard } = require("../utils/helper")
+const { scoreToStarsConverter, getLevelInfo, addScoreToLeaderboard, addUserToLeaderboard, leaderboardClimbing } = require("../utils/helper")
 const Config = require("../models/Config")
+const Leaderboard = require("../models/Leaderboard")
 
 async function createSession(userId, levelId) {
   const level = await Level.findById({ _id: levelId }, { level: 1 })
@@ -21,16 +22,13 @@ async function createSession(userId, levelId) {
 }
 
 async function updateSession(sessionId, score, isCompleted) {
-  //
-  // const oldLeaderBoardDb
   const configs = await Config.find({}).lean()
   const updated = await Session.findByIdAndUpdate(sessionId, { score: score, ...(!isCompleted ? { isActive: false } : {}), isCompleted }, { new: true }).lean()
   if (!updated) {
     throw new Error("Invalid session id")
   }
-
+  const oldLeaderBoard = (await Leaderboard.findOne({}, { users: 1, _id: 0 })).users.sort((a, b) => b.score - a.score)
   updated.requiredStars = ""
-  // let addNextLevel = false
   const level = await Level.findOne({ _id: updated.levelId }, { subcategory: 1, level: 1 }).lean()
   const levels = await Level.find({ subcategory: level.subcategory }).lean()
   if (updated.isCompleted) {
@@ -97,18 +95,15 @@ async function updateSession(sessionId, score, isCompleted) {
           upsert: true,
         }
       )
-      await addUserToLeaderboard(updated.userId, score)
+      const doesUserExistInLeaderBoard = oldLeaderBoard.findIndex((user) => user.user.equals(updated.userId))
+      if (doesUserExistInLeaderBoard == -1) {
+        await addUserToLeaderboard(updated.userId, updated.score)
+      } else {
+        await addScoreToLeaderboard(updated.userId, updated.score)
+      }
     }
   }
-  // const newLeaderBoard
-  // new rank >=9
-  // 4 > 3
-  // if old rank > new rank
-  // rank = 0 ? user below
-  // rank = 9 ? user above
-  // rank = else user above, user below
-  // response [{userId: "DCdscd"},{userId:"csdc",currentUser, star, score}, user3]
-
+  const leaderboard = await leaderboardClimbing(updated.userId, oldLeaderBoard)
   const scores = await Score.findOne({
     subcategory: level.subcategory,
     "levels.userId": updated.userId,
@@ -128,50 +123,21 @@ async function updateSession(sessionId, score, isCompleted) {
         totalScore += await scoreToStarsConverter(userLevel.score)
       }
       if (isUniqueLevel.starsRequired - totalScore > 0) {
-        updated.requiredStars = `Score ${isUniqueLevel.starsRequired - totalScore} more ${isUniqueLevel.starsRequired - totalScore > 1 ? "stars" : "star"}  to unlock the next level!`
+        updated.requiredStars = `Score ${isUniqueLevel.starsRequired - totalScore} more ${isUniqueLevel.starsRequired - totalScore > 1 ? "stars" : "star"} to unlock the next level!`
         updated.isNextLevelUnlocked = false
-      } else {
-        // addNextLevel = true
       }
     } else {
-      // updated.requiredStars = ""
       updated.isNextLevelUnlocked = false
     }
   } else {
     updated.doesNextLevelExist = false
     updated.nextLevelId = ""
-    // updated.requiredStars = ""
   }
   updated.subcategory = level.subcategory
   updated.star = await scoreToStarsConverter(updated.score)
   const levelInfo = await getLevelInfo(updated.userId, level.subcategory)
-  if (updated.nextLevelId) {
-    const isUniqLevel = await isUniqueLevel(updated.level + 1)
-    if (isUniqLevel) {
-      let totalScore = 0
-      const user = scores.levels.filter((_score) => _score.userId.equals(updated.userId))
-      for (const userLevel of user) {
-        totalScore += await scoreToStarsConverter(userLevel.score)
-      }
-      if (totalScore >= isUniqLevel.starsRequired) {
-        levelInfo["levels"].push({ level: updated.level + 1, id: updated.nextLevelId, isUnlocked: true, subCategory: level.subcategory })
-      }
-    } else {
-      const nextLevel = updated.level + 1
-      if (!levelInfo["levels"].some((level) => level.level === nextLevel)) {
-        levelInfo["levels"].push({
-          level: nextLevel,
-          id: updated.nextLevelId,
-          isUnlocked: true,
-          subCategory: level.subcategory,
-        })
-      }
-    }
-  }
-
   updated.levels = levelInfo.levels
-  // const prev_leaderboard = await getLeaderBoard()
-  // await updateLeaderboardScore(updated.userId, prev_leaderboard)
+  updated.leaderboard = leaderboard
   return updated
 }
 
