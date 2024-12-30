@@ -1,7 +1,7 @@
 const Session = require("../models/Session")
 const Level = require("../models/Level")
 const Score = require("../models/Score")
-const { scoreToStarsConverter, getLevelInfo, updateLeaderboardScore, isUniqueLevel, getLeaderBoard, addScoreToLeaderboard, addUserToLeaderboard } = require("../utils/helper")
+const { scoreToStarsConverter, getLevelInfo, isUniqueLevel, addScoreToLeaderboard, addUserToLeaderboard } = require("../utils/helper")
 const Config = require("../models/Config")
 
 async function createSession(userId, levelId) {
@@ -21,6 +21,8 @@ async function createSession(userId, levelId) {
 }
 
 async function updateSession(sessionId, score, isCompleted) {
+  //
+  // const oldLeaderBoardDb
   const configs = await Config.find({}).lean()
   const updated = await Session.findByIdAndUpdate(sessionId, { score: score, ...(!isCompleted ? { isActive: false } : {}), isCompleted }, { new: true }).lean()
   if (!updated) {
@@ -98,6 +100,15 @@ async function updateSession(sessionId, score, isCompleted) {
       await addUserToLeaderboard(updated.userId, score)
     }
   }
+  // const newLeaderBoard
+  // new rank >=9
+  // 4 > 3
+  // if old rank > new rank
+  // rank = 0 ? user below
+  // rank = 9 ? user above
+  // rank = else user above, user below
+  // response [{userId: "DCdscd"},{userId:"csdc",currentUser, star, score}, user3]
+
   const scores = await Score.findOne({
     subcategory: level.subcategory,
     "levels.userId": updated.userId,

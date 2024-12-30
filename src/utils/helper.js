@@ -292,6 +292,7 @@ async function getUserProfile(userId) {
   if (!userId) {
     throw new Error("Invalid input")
   }
+  const userInfo = await User.findOne({ _id: userId }).lean()
   const userProfile = []
   let totalScore = 0
   let totalStars = 0
@@ -304,9 +305,10 @@ async function getUserProfile(userId) {
       }
     }
   }
-  const { username, rank } = await getLeaderBoardRank(userId)
-  userProfile.push({ username, score: totalScore, stars: totalStars, rank })
-  return userProfile
+  const { rank } = await getLeaderBoardRank(userId)
+  userProfile.push({ userId: userId, email: userInfo.email, username: userInfo.username, score: totalScore, stars: totalStars, rank })
+  console.log(userProfile[0])
+  return userProfile[0]
 }
 
 async function getLeaderBoardRank(userId) {
@@ -318,27 +320,20 @@ async function getLeaderBoardRank(userId) {
   }
 }
 
-async function addScoreToLeaderboard(userId, newScore) {
+async function addScoreToLeaderboard(userId, score) {
   const user = await User.findOne({ _id: userId }, { username: 1, _id: 0 })
   const leaderboard = await Leaderboard.findOne()
-  // const sortedLeaderboard = leaderboard.users.sort((a, b) => b.score - a.score)
-  // for (let index = 0; index <= sortedLeaderboard.length - 1; index++) {
-  //   if (sortedLeaderboard[index].user.equals(userId)) {
-  //     console.log(index)
-  //   }
-  // }
   if (leaderboard) {
     const userIndex = leaderboard.users.findIndex((user) => user.user.equals(userId))
 
     if (userIndex !== -1) {
       // User exists in the leaderboard, update the score and stars
       leaderboard.users[userIndex].username = user.username
-      leaderboard.users[userIndex].score += newScore
-      leaderboard.users[userIndex].stars += await scoreToStarsConverter(newScore)
+      leaderboard.users[userIndex].score += score
+      leaderboard.users[userIndex].stars += await scoreToStarsConverter(score)
     }
     await leaderboard.save()
   }
-  console.log(await getLeaderBoard(userId), "Updated Leaderboard")
 }
 
 async function addUserToLeaderboard(userId, score) {
