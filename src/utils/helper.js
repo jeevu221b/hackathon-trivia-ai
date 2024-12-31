@@ -103,7 +103,7 @@ async function getLevelInfo(userId, subcategoryId) {
   const isUniqLevel = await isUniqueLevel(4)
   if (totalStars >= isUniqLevel.starsRequired) {
     const getIdOfUniqLevel = await Level.findOne({ subcategory: subcategoryId, level: 4 }, { _id: true, level: true })
-    if (getIdOfUniqLevel) bigData["levels"].push({ level: 4, id: getIdOfUniqLevel._id, isUnlocked: true, subcategoryId })
+    if (getIdOfUniqLevel) bigData["levels"].push({ level: 4, id: getIdOfUniqLevel._id, isUnlocked: true, isCompleted: false, subcategoryId, score: 0, star: 0 })
   }
   return bigData
 }

@@ -27,6 +27,7 @@ async function createSession(userId, levelId, multiplayer) {
 }
 
 async function updateSession(sessionId, score, isCompleted) {
+  let nextUnlockedLevelInfo = {}
   const configs = await Config.find({}).lean()
   const beforeUpdating = await Session.findByIdAndUpdate(sessionId).lean()
   if (beforeUpdating.isCompleted) {
@@ -136,7 +137,10 @@ async function updateSession(sessionId, score, isCompleted) {
         updated.isNextLevelUnlocked = false
       }
     } else {
-      updated.isNextLevelUnlocked = false
+      updated.isNextLevelUnlocked = true
+    }
+    if (updated.isNextLevelUnlocked) {
+      nextUnlockedLevelInfo = { level: updated.level + 1, id: updated.nextLevelId, isUnlocked: true, isCompleted: false, subcategory: level.subcategory, score: 0, star: 0 }
     }
   } else {
     updated.doesNextLevelExist = false
@@ -145,6 +149,9 @@ async function updateSession(sessionId, score, isCompleted) {
   updated.subcategory = level.subcategory
   updated.star = await scoreToStarsConverter(updated.score)
   const levelInfo = await getLevelInfo(updated.userId, level.subcategory)
+  if (updated.isNextLevelUnlocked) {
+    levelInfo.levels.push(nextUnlockedLevelInfo)
+  }
   updated.levels = levelInfo.levels
   updated.leaderboard = leaderboard
   return updated
