@@ -11,9 +11,10 @@ router.post("/login", async (req, res) => {
   if (!email) {
     return res.status(400).send({ error: "Invalid input :(" })
   }
-  userData.userId = (await createUser(email))._id
+  const data = await createUser(email)
+  userData.userId = data._id
   const token = jwt.sign(userData, process.env.SECRET_KEY, { expiresIn: "15d" })
-  return res.status(200).send({ token })
+  return res.status(200).send({ token, id: userData.userId, username: data.username })
 })
 router.post("/demo", (req, res) => {
   res.send(200).send("Demo :)")

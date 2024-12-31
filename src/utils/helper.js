@@ -6,6 +6,7 @@ const Difficulty = require("../models/Difficulty")
 const Score = require("../models/Score")
 const Level = require("../models/Level")
 const env = require("dotenv")
+const { generateFromEmail } = require("unique-username-generator")
 
 // eslint-disable-next-line no-unused-vars
 const { ObjectId } = require("mongodb")
@@ -161,7 +162,7 @@ async function isUniqueLevel(level) {
   }
 }
 
-function shuffleArray(array, levelId) {
+function shuffleArray(array, levelId, multiplayer) {
   const level = Level.findById({ _id: levelId }, { level: 1 })
 
   // Shuffle options within each question
@@ -186,11 +187,12 @@ function shuffleArray(array, levelId) {
   }
 
   // Shuffle the questions
-  for (let i = array.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1))
-    ;[array[i], array[j]] = [array[j], array[i]]
+  if (!multiplayer) {
+    for (let i = array.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1))
+      ;[array[i], array[j]] = [array[j], array[i]]
+    }
   }
-
   return array
 }
 
@@ -241,10 +243,10 @@ function decodeToken(req, res, next) {
 async function createUser(email) {
   const user = await User.findOne({ email })
   if (user) {
-    return user._id
+    return { _id: user.id, username: user.username }
   } else {
-    const newUser = await User.create({ email, username: email })
-    return newUser._id
+    const newUser = await User.create({ email, username: generateFromEmail(email, 0).slice(0, 5) })
+    return { _id: newUser._id, username: newUser.username }
   }
 }
 
@@ -267,7 +269,6 @@ async function getUserProfile(userId) {
   }
   const { rank } = await getLeaderBoardRank(userId)
   userProfile.push({ userId: userId, email: userInfo.email, username: userInfo.username, score: totalScore, stars: totalStars, rank })
-  console.log(userProfile[0])
   return userProfile[0]
 }
 

@@ -28,7 +28,7 @@ router.post("/get/question", async (req, res) => {
       throw new Error("Invalid id")
     }
     const response = await getLevelQuestions(body.levelId)
-    return res.status(200).send(shuffleArray(response, body.levelId))
+    return res.status(200).send(shuffleArray(response, body.levelId, body.multiplayer))
   } catch (error) {
     console.error(error)
     return res.status(error.statusCode || 400).send(error.message)

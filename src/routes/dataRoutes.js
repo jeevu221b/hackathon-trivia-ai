@@ -11,7 +11,7 @@ router.post("/data", async (req, res) => {
     if (!body.internaluserId) {
       throw new Error("Invalid input")
     }
-    const response = await loadInitialData(body.internaluserId)
+    const response = await loadInitialData(body.internaluserId, body.multiplayer)
     return res.status(200).send(response)
   } catch (error) {
     console.error(error)

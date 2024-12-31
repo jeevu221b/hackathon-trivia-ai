@@ -8,7 +8,7 @@ const Score = require("../models/Score")
 const { ObjectId } = require("mongodb")
 const { scoreToStarsConverter, getSubcategoryScore } = require("../utils/helper")
 
-async function loadInitialData(userId) {
+async function loadInitialData(userId, multiplayer) {
   const bigData = { categories: [], subcategories: [], levels: [] }
   const categories = await Category.find({}).lean()
   const levels = await Level.find({}, { questions: 0 }).lean()
@@ -38,51 +38,56 @@ async function loadInitialData(userId) {
       score: await getSubcategoryScore(subcategory._id, userId),
     })
   }
-
-  for (const score of scores) {
-    let insideTracker = 0
-    for (const userData of score.levels) {
-      insideTracker += 1
-      const index = levels.findIndex((level) => level._id.equals(userData.levelId) && userData.userId.equals(userId))
-      if (index !== -1) {
-        const level = levels[index]
-        bigData["levels"].push({
-          level: level.level,
-          id: level._id,
-          isUnlocked: true,
-          isCompleted: true,
-          subCategory: level.subcategory,
-          image: level.image,
-          score: userData.score,
-          star: await scoreToStarsConverter(userData.score),
-        })
-        const uniqLevel = configs[0].levels.filter((item) => item.level === level.level + 1)[0]
-        if (score.levels.length == insideTracker && !uniqLevel) {
-          let levelId = await Level.findOne({ subcategory: level.subcategory, level: level.level + 1 }, { _id: 1 }).lean()
-          if (levelId) {
-            bigData["levels"].push({ level: level.level + 1, id: levelId._id, isUnlocked: true, subCategory: level.subcategory, image: levelId.image })
+  if (multiplayer === true) {
+    for (const level of levels) {
+      bigData["levels"].push({ level: level.level, id: level._id, isUnlocked: true, subCategory: level.subcategory, image: level.image })
+    }
+  } else {
+    for (const score of scores) {
+      let insideTracker = 0
+      for (const userData of score.levels) {
+        insideTracker += 1
+        const index = levels.findIndex((level) => level._id.equals(userData.levelId) && userData.userId.equals(userId))
+        if (index !== -1) {
+          const level = levels[index]
+          bigData["levels"].push({
+            level: level.level,
+            id: level._id,
+            isUnlocked: true,
+            isCompleted: true,
+            subCategory: level.subcategory,
+            image: level.image,
+            score: userData.score,
+            star: await scoreToStarsConverter(userData.score),
+          })
+          const uniqLevel = configs[0].levels.filter((item) => item.level === level.level + 1)[0]
+          if (score.levels.length == insideTracker && !uniqLevel) {
+            let levelId = await Level.findOne({ subcategory: level.subcategory, level: level.level + 1 }, { _id: 1 }).lean()
+            if (levelId) {
+              bigData["levels"].push({ level: level.level + 1, id: levelId._id, isUnlocked: true, subCategory: level.subcategory, image: levelId.image })
+            }
           }
         }
       }
     }
-  }
-  for (const level of levels) {
-    const existingLevelIndex = bigData["levels"].findIndex((data) => data.id.equals(level._id))
-    if (existingLevelIndex === -1) {
-      totalScore = 0
-      const isUniqueLevel = configs[0].levels.filter((item) => item.level === level.level)[0]
-      const score = scores.filter((_score) => _score.subcategory.equals(level.subcategory))[0]
-      if (isUniqueLevel && score) {
-        const user = score.levels.filter((_score) => _score.userId.equals(userId))
-        for (const userLevel of user) {
-          totalScore += await scoreToStarsConverter(userLevel.score)
+    for (const level of levels) {
+      const existingLevelIndex = bigData["levels"].findIndex((data) => data.id.equals(level._id))
+      if (existingLevelIndex === -1) {
+        totalScore = 0
+        const isUniqueLevel = configs[0].levels.filter((item) => item.level === level.level)[0]
+        const score = scores.filter((_score) => _score.subcategory.equals(level.subcategory))[0]
+        if (isUniqueLevel && score) {
+          const user = score.levels.filter((_score) => _score.userId.equals(userId))
+          for (const userLevel of user) {
+            totalScore += await scoreToStarsConverter(userLevel.score)
+          }
         }
-      }
-      if (level.level === 1 || level.level === 2 || (isUniqueLevel && totalScore >= isUniqueLevel.starsRequired)) {
-        bigData["levels"].push({ level: level.level, id: level._id, isUnlocked: true, subCategory: level.subcategory, image: level.image })
-      } else {
-        if (!bigData["levels"].includes(level._id)) {
-          bigData["levels"].push({ level: level.level, id: level._id, isUnlocked: false, subCategory: level.subcategory, image: level.image })
+        if (level.level === 1 || level.level === 2 || (isUniqueLevel && totalScore >= isUniqueLevel.starsRequired)) {
+          bigData["levels"].push({ level: level.level, id: level._id, isUnlocked: true, subCategory: level.subcategory, image: level.image })
+        } else {
+          if (!bigData["levels"].includes(level._id)) {
+            bigData["levels"].push({ level: level.level, id: level._id, isUnlocked: false, subCategory: level.subcategory, image: level.image })
+          }
         }
       }
     }
