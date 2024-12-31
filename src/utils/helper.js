@@ -241,12 +241,22 @@ function decodeToken(req, res, next) {
 }
 
 async function createUser(email, name) {
-  const user = await User.findOne({ email })
-  if (user) {
-    return { _id: user.id, username: user.username }
-  } else {
-    const newUser = await User.create({ email, username: generateFromEmail(name || email, 0).slice(0, 6) })
-    return { _id: newUser._id, username: newUser.username }
+  try {
+    const user = await User.findOne({ email })
+    if (user) {
+      return { _id: user.id, username: user.username }
+    } else {
+      const newUser = await User.create({
+        email,
+        username: generateFromEmail(name || email, 0)
+          .slice(0, 6)
+          .toLowerCase(),
+      })
+      return { _id: newUser._id, username: newUser.username }
+    }
+  } catch (error) {
+    console.error(error)
+    throw new Error("Invalid input")
   }
 }
 

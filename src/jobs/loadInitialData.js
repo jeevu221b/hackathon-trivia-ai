@@ -39,8 +39,31 @@ async function loadInitialData(userId, multiplayer) {
     })
   }
   if (multiplayer === true) {
+    for (const score of scores) {
+      for (const userData of score.levels) {
+        if (userData.userId.equals(userId)) {
+          bigData["levels"].push({
+            level: userData.level,
+            id: userData.levelId,
+            isUnlocked: true,
+            isCompleted: true,
+            subCategory: score.subcategory,
+            // image: level.image,
+            score: userData.score,
+            star: await scoreToStarsConverter(userData.score),
+          })
+        }
+      }
+    }
+
     for (const level of levels) {
-      bigData["levels"].push({ level: level.level, id: level._id, isUnlocked: true, subCategory: level.subcategory, image: level.image })
+      const index = bigData["levels"].findIndex((data) => {
+        return data.id.toString() == level._id.toString()
+      })
+
+      if (index === -1) {
+        bigData["levels"].push({ level: level.level, id: level._id, isUnlocked: true, subCategory: level.subcategory, image: level.image })
+      }
     }
   } else {
     for (const score of scores) {

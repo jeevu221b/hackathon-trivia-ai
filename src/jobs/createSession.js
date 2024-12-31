@@ -140,7 +140,7 @@ async function updateSession(sessionId, score, isCompleted) {
       updated.isNextLevelUnlocked = true
     }
     if (updated.isNextLevelUnlocked) {
-      nextUnlockedLevelInfo = { level: updated.level + 1, id: updated.nextLevelId, isUnlocked: true, isCompleted: false, subcategory: level.subcategory, score: 0, star: 0 }
+      nextUnlockedLevelInfo = { level: updated.level + 1, id: updated.nextLevelId, isUnlocked: true, isCompleted: false, subCategory: level.subcategory, score: 0, star: 0 }
     }
   } else {
     updated.doesNextLevelExist = false
