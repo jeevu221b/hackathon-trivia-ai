@@ -110,9 +110,22 @@ async function getLevelInfo(userId, subcategoryId) {
 
 async function getLeaderBoard(currentUser) {
   const leaderboardData = []
+  const weeklyLeaderboardData = []
   const leaderboard = await Leaderboard.findOne({}, { users: 1 })
+  const users = await User.find({})
   if (leaderboard) {
     for (const data of leaderboard.users) {
+      if (data.updatedAt > getNearestFriday()) {
+        weeklyLeaderboardData.push({
+          userId: data.user,
+          username: data.username,
+          score: data.score,
+          stars: data.stars,
+          ...(data.updatedAt ? { climbedAt: data.updatedAt } : {}),
+          ...(data.user.equals(currentUser) ? { currentUser: true } : {}),
+        })
+      }
+
       if (data.user.equals(currentUser)) {
         leaderboardData.push({
           userId: data.user,
@@ -130,8 +143,20 @@ async function getLeaderBoard(currentUser) {
         })
       }
     }
-
-    return leaderboardData.sort((a, b) => b.score - a.score)
+    for (const user of users) {
+      if (!leaderboard.users.some((data) => data.user.equals(user._id))) {
+        leaderboardData.push({
+          userId: user._id,
+          username: user.username,
+          score: 0,
+          stars: 0,
+          ...(user._id.equals(currentUser) ? { currentUser: true } : {}),
+        })
+      }
+    }
+    const sortedLeaderboard = leaderboardData.sort((a, b) => b.score - a.score)
+    const sortedWeeklyLeaderboard = weeklyLeaderboardData.sort((a, b) => b.score - a.score)
+    return { all: sortedLeaderboard, weekly: sortedWeeklyLeaderboard }
   } else {
     throw new Error("User not found :(")
   }
@@ -406,7 +431,25 @@ function sortCategory(categories) {
   const sortedCategories = [...recentCategories, ...shuffledOtherCategories]
   return sortedCategories
 }
+
+function getNearestFriday(date = new Date()) {
+  const dayOfWeek = date.getDay()
+  const daysUntilNextFriday = (5 - dayOfWeek + 7) % 7
+  const daysSinceLastFriday = (dayOfWeek - 5 + 7) % 7
+
+  let nearestFriday
+  if (daysUntilNextFriday <= daysSinceLastFriday) {
+    nearestFriday = new Date(date)
+    nearestFriday.setDate(date.getDate() + daysUntilNextFriday)
+  } else {
+    nearestFriday = new Date(date)
+    nearestFriday.setDate(date.getDate() - daysSinceLastFriday)
+  }
+  return nearestFriday
+}
+
 module.exports = {
+  getNearestFriday,
   sortCategory,
   apiMessageFormat,
   parsedQuestions,

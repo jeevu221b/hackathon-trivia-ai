@@ -22,6 +22,10 @@ const usersSchema = new mongoose.Schema(
       type: Number,
       required: true,
     },
+    climbedAt: {
+      type: Date,
+      required: false,
+    },
   },
   { timestamps: true }
 )
