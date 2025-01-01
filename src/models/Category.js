@@ -10,13 +10,16 @@ const CategorySchema = new mongoose.Schema(
     image: {
       type: String,
       trim: true,
+      default: "",
     },
     subtext: {
       type: String,
       trim: true,
+      default: "",
     },
     isBanner: {
       type: Boolean,
+      default: false,
     },
     displayName: {
       type: String,

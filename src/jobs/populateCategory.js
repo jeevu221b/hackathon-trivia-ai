@@ -9,6 +9,10 @@ const { categoryPromptFormatter } = require("../temp/prompts")
 
 // Input param validation functions:
 const categoriesValidation = (categories) => {
+  // example:
+  //  "categories": [{
+  //       "category":"Bridgerton"
+  //   }]
   const isCategoriesArray = Array.isArray(categories)
   if (!isCategoriesArray) {
     return false

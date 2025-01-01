@@ -101,7 +101,7 @@ async function populateSubCategory({ subcategories, numberOfSubCategories }) {
       for (const subcategory of subcategories) {
         documents.push(
           await SubCategory.findOneAndUpdate(
-            { name: subcategory.subcategory }, //filter
+            { name: subcategory.subcategory, category: subcategory.id }, //filter
             { name: subcategory.subcategory, category: subcategory.id }, //update or create
             {
               upsert: true,

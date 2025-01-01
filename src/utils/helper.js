@@ -381,7 +381,33 @@ async function leaderboardClimbing(userId, oldLeaderBoard) {
   return leaderboardDetail
 }
 
+function sortCategory(categories) {
+  const currentDate = new Date()
+
+  // Separate the categories added in the last 15 days and the rest
+  const recentCategories = []
+  const otherCategories = []
+
+  for (let category of categories) {
+    const categoryDate = new Date(category.createdAt)
+    const dateDifference = (currentDate - categoryDate) / (1000 * 60 * 60 * 24) // Difference in days
+
+    if (dateDifference <= 15) {
+      recentCategories.push(category)
+    } else {
+      otherCategories.push(category)
+    }
+  }
+
+  // Shuffle the otherCategories array
+  const shuffledOtherCategories = otherCategories.sort(() => 0.5 - Math.random())
+
+  // Combine the recentCategories (on top) and shuffledOtherCategories
+  const sortedCategories = [...recentCategories, ...shuffledOtherCategories]
+  return sortedCategories
+}
 module.exports = {
+  sortCategory,
   apiMessageFormat,
   parsedQuestions,
   sendPromptToDb,
