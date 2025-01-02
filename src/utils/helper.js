@@ -13,6 +13,7 @@ const { ObjectId } = require("mongodb")
 const Leaderboard = require("../models/Leaderboard")
 const jwt = require("jsonwebtoken")
 const User = require("../models/User")
+const WeeklyLeaderboard = require("../models/WeeklyLeaderboard")
 env.config()
 
 function apiError(error) {
@@ -103,7 +104,7 @@ async function getLevelInfo(userId, subcategoryId) {
   const isUniqLevel = await isUniqueLevel(4)
   if (totalStars >= isUniqLevel.starsRequired) {
     const getIdOfUniqLevel = await Level.findOne({ subcategory: subcategoryId, level: 4 }, { _id: true, level: true })
-    if (getIdOfUniqLevel) bigData["levels"].push({ level: 4, id: getIdOfUniqLevel._id, isUnlocked: true, isCompleted: false, subcategoryId, score: 0, star: 0 })
+    if (getIdOfUniqLevel) bigData["levels"].push({ level: 4, id: getIdOfUniqLevel._id, isUnlocked: true, isCompleted: false, subCategory: subcategoryId, score: 0, star: 0 })
   }
   return bigData
 }
@@ -112,20 +113,10 @@ async function getLeaderBoard(currentUser) {
   const leaderboardData = []
   const weeklyLeaderboardData = []
   const leaderboard = await Leaderboard.findOne({}, { users: 1 })
+  const weeklyLeaderboard = await WeeklyLeaderboard.findOne({}, { users: 1, climbedAt: 1 })
   const users = await User.find({})
   if (leaderboard) {
     for (const data of leaderboard.users) {
-      if (data.updatedAt > getNearestFriday()) {
-        weeklyLeaderboardData.push({
-          userId: data.user,
-          username: data.username,
-          score: data.score,
-          stars: data.stars,
-          ...(data.updatedAt ? { climbedAt: data.updatedAt } : {}),
-          ...(data.user.equals(currentUser) ? { currentUser: true } : {}),
-        })
-      }
-
       if (data.user.equals(currentUser)) {
         leaderboardData.push({
           userId: data.user,
@@ -143,23 +134,45 @@ async function getLeaderBoard(currentUser) {
         })
       }
     }
-    for (const user of users) {
-      if (!leaderboard.users.some((data) => data.user.equals(user._id))) {
-        leaderboardData.push({
-          userId: user._id,
-          username: user.username,
-          score: 0,
-          stars: 0,
-          ...(user._id.equals(currentUser) ? { currentUser: true } : {}),
+  }
+
+  if (weeklyLeaderboard) {
+    for (const data of weeklyLeaderboard.users) {
+      if (data.user.equals(currentUser)) {
+        weeklyLeaderboardData.push({
+          userId: data.user,
+          username: data.username,
+          score: data.score,
+          stars: data.stars,
+          currentUser: true,
+        })
+      } else {
+        weeklyLeaderboardData.push({
+          userId: data.user,
+          username: data.username,
+          score: data.score,
+          stars: data.stars,
         })
       }
     }
-    const sortedLeaderboard = leaderboardData.sort((a, b) => b.score - a.score)
-    const sortedWeeklyLeaderboard = weeklyLeaderboardData.sort((a, b) => b.score - a.score)
-    return { all: sortedLeaderboard, weekly: sortedWeeklyLeaderboard }
-  } else {
-    throw new Error("User not found :(")
   }
+
+  // Those user who has not played the game yet set their scores to 0 and return them
+  for (const user of users) {
+    if (!leaderboard.users.some((data) => data.user.equals(user._id))) {
+      leaderboardData.push({
+        userId: user._id,
+        username: user.username,
+        score: 0,
+        stars: 0,
+        ...(user._id.equals(currentUser) ? { currentUser: true } : {}),
+      })
+    }
+  }
+  const sortedLeaderboard = leaderboardData.sort((a, b) => b.score - a.score)
+  const sortedWeeklyLeaderboard = weeklyLeaderboardData.sort((a, b) => b.score - a.score)
+  sortedWeeklyLeaderboard[0].climbedAt = weeklyLeaderboard.climbedAt
+  return { all: sortedLeaderboard, weekly: sortedWeeklyLeaderboard }
 }
 async function isLevelUnlockedForUser(userId, levelId) {
   const level = await Level.findById({ _id: levelId }, { _id: 1, subcategory: 1 })
@@ -444,24 +457,34 @@ function sortCategory(categories) {
   // Combine the recentCategories (already shuffled) and otherCategories (already shuffled)
   return recentCategories.concat(otherCategories)
 }
-function getNearestFriday(date = new Date()) {
-  const dayOfWeek = date.getDay()
-  const daysUntilNextFriday = (5 - dayOfWeek + 7) % 7
-  const daysSinceLastFriday = (dayOfWeek - 5 + 7) % 7
 
-  let nearestFriday
-  if (daysUntilNextFriday <= daysSinceLastFriday) {
-    nearestFriday = new Date(date)
-    nearestFriday.setDate(date.getDate() + daysUntilNextFriday)
-  } else {
-    nearestFriday = new Date(date)
-    nearestFriday.setDate(date.getDate() - daysSinceLastFriday)
+function getNearestFridayStartDate() {
+  // Get current date
+  let currentDate = new Date()
+
+  // Get the current day of the week (0 = Sunday, 1 = Monday, ..., 6 = Saturday)
+  let currentDay = currentDate.getDay()
+
+  // Calculate days until next Friday (Friday is 5th day of the week)
+  let daysUntilFriday = 5 - currentDay
+
+  // If today is Friday (currentDay === 5), daysUntilFriday would be 0, so we need to adjust for next Friday
+  if (daysUntilFriday <= 0) {
+    daysUntilFriday += 7
   }
-  return nearestFriday
+
+  // Calculate the date of next Friday
+  let nextFridayDate = new Date(currentDate)
+  nextFridayDate.setDate(currentDate.getDate() + daysUntilFriday)
+
+  // Set the time to 00:00:00 (start of the day)
+  nextFridayDate.setHours(0, 0, 0, 0)
+
+  return nextFridayDate
 }
 
 module.exports = {
-  getNearestFriday,
+  getNearestFridayStartDate,
   sortCategory,
   apiMessageFormat,
   parsedQuestions,

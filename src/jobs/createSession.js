@@ -1,10 +1,12 @@
 const Session = require("../models/Session")
 const Level = require("../models/Level")
 const Score = require("../models/Score")
-const { scoreToStarsConverter, getLevelInfo, addScoreToLeaderboard, addUserToLeaderboard, leaderboardClimbing } = require("../utils/helper")
+const { scoreToStarsConverter, getLevelInfo, addScoreToLeaderboard, addUserToLeaderboard, leaderboardClimbing, getNearestFridayStartDate } = require("../utils/helper")
 const Config = require("../models/Config")
 const Leaderboard = require("../models/Leaderboard")
 const { SESSION_ALREADY_COMPLETED, INVALID_SESSION_ID, INVALID_LEVEL } = require("../config/errorLang")
+const WeeklyLeaderboard = require("../models/WeeklyLeaderboard")
+const { addUserToWeeklyLeaderboard, addScoreToWeeklyLeaderboard, weeklyLeaderboardClimbing } = require("../utils/leaderBoardHelper")
 
 async function createSession(userId, levelId, multiplayer) {
   if (multiplayer) {
@@ -15,20 +17,18 @@ async function createSession(userId, levelId, multiplayer) {
   if (!level) {
     throw new Error(INVALID_LEVEL)
   }
-  const sessionData = {
-    userId: userId,
+
+  const session = await Session.create({
+    userId,
     level: level.level,
-    levelId: levelId,
+    levelId,
     isActive: true,
     isCompleted: false,
-  }
-  const session = await Session.create(sessionData)
+  })
   return session._id
 }
 
 async function updateSession(sessionId, score, isCompleted) {
-  let nextUnlockedLevelInfo = {}
-  const configs = await Config.find({}).lean()
   const beforeUpdating = await Session.findByIdAndUpdate(sessionId).lean()
   if (beforeUpdating.isCompleted) {
     throw new Error(SESSION_ALREADY_COMPLETED)
@@ -37,7 +37,10 @@ async function updateSession(sessionId, score, isCompleted) {
   if (!updated) {
     throw new Error(INVALID_SESSION_ID)
   }
+  let nextUnlockedLevelInfo = {}
+  const configs = await Config.find({}).lean()
   const oldLeaderBoard = (await Leaderboard.findOne({}, { users: 1, _id: 0 })).users.sort((a, b) => b.score - a.score)
+  const oldWeeklyLeaderBoard = (await WeeklyLeaderboard.findOne({}, { users: 1, _id: 0 })).users.sort((a, b) => b.score - a.score)
   updated.requiredStars = ""
   const level = await Level.findOne({ _id: updated.levelId }, { subcategory: 1, level: 1 }).lean()
   const levels = await Level.find({ subcategory: level.subcategory }).lean()
@@ -56,7 +59,6 @@ async function updateSession(sessionId, score, isCompleted) {
         "levels.$": 1,
       }
     ).lean()
-
     if (existingScore) {
       if (score > existingScore.levels[0].score) {
         updated.isBestScore = true
@@ -112,8 +114,31 @@ async function updateSession(sessionId, score, isCompleted) {
         await addScoreToLeaderboard(updated.userId, updated.score)
       }
     }
+
+    //Weekly Leaderboard
+    const { endsAt } = await WeeklyLeaderboard.findOne({}, { endsAt: 1, _id: 0 }).lean()
+    const currentTime = new Date()
+    if (currentTime < endsAt) {
+      if (existingScore) {
+        if (score > existingScore.levels[0].score) {
+          await addScoreToWeeklyLeaderboard(updated.userId, score - existingScore.levels[0].score)
+        }
+      } else {
+        const doesUserExistInWeeklyLeaderBoard = oldWeeklyLeaderBoard.findIndex((user) => user.user.equals(updated.userId))
+        if (doesUserExistInWeeklyLeaderBoard == -1) {
+          await addUserToWeeklyLeaderboard(updated.userId, updated.score)
+        } else {
+          await addScoreToWeeklyLeaderboard(updated.userId, updated.score)
+        }
+      }
+    } else {
+      //Update the endsAt time in the weekly leaderboard
+      await WeeklyLeaderboard.updateOne({}, { endsAt: getNearestFridayStartDate() })
+    }
   }
+
   const leaderboard = await leaderboardClimbing(updated.userId, oldLeaderBoard)
+  await weeklyLeaderboardClimbing(updated.userId, oldWeeklyLeaderBoard)
   const scores = await Score.findOne({
     subcategory: level.subcategory,
     "levels.userId": updated.userId,

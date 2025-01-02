@@ -10,11 +10,13 @@ const { scoreToStarsConverter, getSubcategoryScore, sortCategory } = require("..
 
 async function loadInitialData(userId, multiplayer) {
   const bigData = { categories: [], subcategories: [], levels: [] }
-  const categories = await Category.find({}).lean()
-  const levels = await Level.find({}, { questions: 0 }).lean()
-  const scores = await Score.find({}).lean()
-  const configs = await Config.find({}).lean()
-  const subcategories = await SubCategory.find({}).lean()
+  const [categories, levels, scores, configs, subcategories] = await Promise.all([
+    Category.find({}).lean(),
+    Level.find({}, { questions: 0 }).lean(),
+    Score.find({}).lean(),
+    Config.find({}).lean(),
+    SubCategory.find({}).lean(),
+  ])
   let totalScore = 0
 
   const sortedCategories = sortCategory(categories)
@@ -26,6 +28,7 @@ async function loadInitialData(userId, multiplayer) {
       isBanner: category.isBanner,
       displayName: category.displayName,
       subtext: category.subtext,
+      new: category.updatedAt > new Date(new Date().setDate(new Date().getDate() - 10)),
     })
   }
 
@@ -37,6 +40,7 @@ async function loadInitialData(userId, multiplayer) {
       image: subcategory.image ? subcategory.image : "subcategory.png",
       facts: subcategory.facts,
       score: await getSubcategoryScore(subcategory._id, userId),
+      new: subcategory.updatedAt > new Date(new Date().setDate(new Date().getDate() - 7)),
     })
   }
   if (multiplayer === true) {
