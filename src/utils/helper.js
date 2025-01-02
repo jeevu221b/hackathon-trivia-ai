@@ -261,6 +261,12 @@ function decodeToken(req, res, next) {
     next()
     // eslint-disable-next-line no-unused-vars
   } catch (error) {
+    if (error.name === "TokenExpiredError") {
+      req.body.hasExpired = true
+      next()
+      return
+      // Handle expired token
+    }
     return res.status(500).send({ error: "Invalid token :(" })
   }
 }
@@ -407,31 +413,37 @@ async function leaderboardClimbing(userId, oldLeaderBoard) {
 }
 
 function sortCategory(categories) {
-  const currentDate = new Date()
+  const currentTime = Date.now()
+  const fifteenDaysInMs = 15 * 24 * 60 * 60 * 1000
+  const cutoffTime = currentTime - fifteenDaysInMs
 
-  // Separate the categories added in the last 15 days and the rest
+  // Separate categories and shuffle in one pass
   const recentCategories = []
   const otherCategories = []
 
-  for (let category of categories) {
-    const categoryDate = new Date(category.createdAt)
-    const dateDifference = (currentDate - categoryDate) / (1000 * 60 * 60 * 24) // Difference in days
+  for (let i = categories.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[categories[i], categories[j]] = [categories[j], categories[i]]
 
-    if (dateDifference <= 15) {
+    const category = categories[i]
+    if (new Date(category.createdAt).getTime() > cutoffTime) {
       recentCategories.push(category)
     } else {
       otherCategories.push(category)
     }
   }
 
-  // Shuffle the otherCategories array
-  const shuffledOtherCategories = otherCategories.sort(() => 0.5 - Math.random())
+  // Handle the last element
+  const lastCategory = categories[0]
+  if (new Date(lastCategory.createdAt).getTime() > cutoffTime) {
+    recentCategories.push(lastCategory)
+  } else {
+    otherCategories.push(lastCategory)
+  }
 
-  // Combine the recentCategories (on top) and shuffledOtherCategories
-  const sortedCategories = [...recentCategories, ...shuffledOtherCategories]
-  return sortedCategories
+  // Combine the recentCategories (already shuffled) and otherCategories (already shuffled)
+  return recentCategories.concat(otherCategories)
 }
-
 function getNearestFriday(date = new Date()) {
   const dayOfWeek = date.getDay()
   const daysUntilNextFriday = (5 - dayOfWeek + 7) % 7

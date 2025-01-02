@@ -6,16 +6,18 @@ const router = express.Router()
 
 router.post("/data", async (req, res) => {
   try {
-    const body = req.body
-    console.log(body.internaluserId)
-    if (!body.internaluserId) {
+    const { internaluserId, hasExpired, multiplayer } = req.body
+    if (!internaluserId && !hasExpired) {
       throw new Error("Invalid input")
     }
-    const response = await loadInitialData(body.internaluserId, body.multiplayer)
-    return res.status(200).send(response)
+    if (hasExpired) {
+      return res.status(410).json({ hasExpired })
+    }
+    const response = await loadInitialData(internaluserId, multiplayer)
+    return res.status(200).json(response)
   } catch (error) {
-    console.error(error)
-    return res.status(error.statusCode || 400).send(error.message)
+    console.error("Error in /data endpoint:", error)
+    return res.status(error.statusCode || 400).json({ error: error.message })
   }
 })
 
