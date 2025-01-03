@@ -2,6 +2,7 @@ const express = require("express")
 const mongodb = require("mongodb")
 const { loadInitialData } = require("../jobs/loadInitialData")
 const { getLeaderBoard, getSubcategoryScore, getUserProfile } = require("../utils/helper")
+const User = require("../models/User")
 const router = express.Router()
 
 router.post("/data", async (req, res) => {
@@ -13,7 +14,9 @@ router.post("/data", async (req, res) => {
     if (hasExpired) {
       return res.status(410).json({ hasExpired })
     }
-    const response = await loadInitialData(internaluserId, multiplayer)
+
+    const { firstLogin } = await User.findByIdAndUpdate(internaluserId, { firstLogin: false }, { firstLogin: 1 }).lean()
+    const response = await loadInitialData(internaluserId, multiplayer, firstLogin)
     return res.status(200).json(response)
   } catch (error) {
     console.error("Error in /data endpoint:", error)

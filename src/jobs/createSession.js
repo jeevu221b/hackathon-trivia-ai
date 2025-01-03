@@ -45,23 +45,22 @@ async function updateSession(sessionId, score, isCompleted) {
   if (!updatedSession) {
     throw new Error(INVALID_SESSION_ID)
   }
-  
-  let nextUnlockedLevelInfo = {}
+
   const oldLeaderBoard = (await Leaderboard.findOne({}, { users: 1, _id: 0 }))?.users.sort((a, b) => b.score - a.score)
   const oldWeeklyLeaderBoard = (await WeeklyLeaderboard.findOne({}, { users: 1, _id: 0 }))?.users.sort((a, b) => b.score - a.score)
   if (!oldWeeklyLeaderBoard) {
     await resetWeeklyLeaderBoard()
   }
-  
+
   updatedSession.requiredStars = ""
   const level = await Level.findOne({ _id: updatedSession.levelId }, { subcategory: 1, level: 1 }).lean()
   const levels = await Level.find({ subcategory: level.subcategory }).lean()
   if (updatedSession.isCompleted) {
-    //Update the score in the Score collection
+    // Update the score in the Score collection
     let { isBestScore, score, stars } = await updateScore(level.subcategory, updatedSession.userId, updatedSession.levelId, updatedSession)
     updatedSession.isBestScore = isBestScore
-    
-    // Updat the score in the Leaderboards
+
+    // Update the score in the Leaderboards
     if (score != -1) {
       await updateLeaderboard(updatedSession.userId, score, stars)
       const weeklyleaderboard = await WeeklyLeaderboard.findOne({}, { _id: 0 }).lean()
@@ -77,7 +76,7 @@ async function updateSession(sessionId, score, isCompleted) {
       }
     }
   }
-  
+
   const leaderboard = await leaderboardClimbing(updatedSession.userId, oldLeaderBoard)
   const configs = await Config.find({}).lean()
   await weeklyLeaderboardClimbing(updatedSession.userId, oldWeeklyLeaderBoard)
@@ -106,9 +105,6 @@ async function updateSession(sessionId, score, isCompleted) {
     } else {
       updatedSession.isNextLevelUnlocked = true
     }
-    if (updatedSession.isNextLevelUnlocked) {
-      nextUnlockedLevelInfo = { level: updatedSession.level + 1, id: updatedSession.nextLevelId, isUnlocked: true, isCompleted: false, subCategory: level.subcategory, score: 0, star: 0 }
-    }
   } else {
     updatedSession.doesNextLevelExist = false
     updatedSession.nextLevelId = ""
@@ -116,9 +112,6 @@ async function updateSession(sessionId, score, isCompleted) {
   updatedSession.subcategory = level.subcategory
   updatedSession.star = await scoreToStarsConverter(updatedSession.score)
   const levelInfo = await getLevelInfo(updatedSession.userId, level.subcategory)
-  if (updatedSession.isNextLevelUnlocked) {
-    levelInfo.levels.push(nextUnlockedLevelInfo)
-  }
   updatedSession.levels = levelInfo.levels
   updatedSession.leaderboard = leaderboard
   return updatedSession

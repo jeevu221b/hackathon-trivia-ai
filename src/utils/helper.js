@@ -323,6 +323,7 @@ async function createUser(email, name) {
   try {
     const user = await User.findOne({ email })
     if (user) {
+      await User.updateOne({ email }, { firstLogin: false })
       return { _id: user.id, username: user.username }
     } else {
       const newUser = await User.create({
