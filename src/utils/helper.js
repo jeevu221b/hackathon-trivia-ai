@@ -1,3 +1,4 @@
+const mongoose = require("mongoose")
 // eslint-disable-next-line no-unused-vars
 const mongodb = require("mongodb")
 const Config = require("../models/Config")
@@ -14,6 +15,8 @@ const Leaderboard = require("../models/Leaderboard")
 const jwt = require("jsonwebtoken")
 const User = require("../models/User")
 const WeeklyLeaderboard = require("../models/WeeklyLeaderboard")
+const WeeklyLeaderboardWinners = require("../models/WeeklyLeaderboardWinners")
+
 env.config()
 
 function apiError(error) {
@@ -47,8 +50,14 @@ async function createDifficultyPrompt(prompt, level) {
   return data
 }
 
-async function scoreToStarsConverter(score) {
-  const stars = await Config.find({}, { stars: 1 }).lean()
+async function scoreToStarsConverter(score, config) {
+  let stars
+  if (!config) {
+    stars = await Config.find({}, { stars: 1 }).lean()
+  } else {
+    stars = config
+  }
+
   for (const star of stars) {
     // eslint-disable-next-line no-undef
     finalStar = star.stars.filter((item) => score <= item.score)
@@ -109,11 +118,37 @@ async function getLevelInfo(userId, subcategoryId) {
   return bigData
 }
 
+async function addUserToWeeklyLeaderBoardWinners(weeklyLeaderboard) {
+  console.log(weeklyLeaderboard)
+  weeklyLeaderboard.users.sort((a, b) => b.score - a.score)
+  let user = weeklyLeaderboard.users[0]
+  if (!user) return
+  user = { user: user.user, username: user.username, score: user.score, stars: user.stars, climbedAt: weeklyLeaderboard.climbedAt }
+  console.log(user)
+  const leaderboard = await WeeklyLeaderboardWinners.findOne()
+  if (leaderboard) {
+    leaderboard.winners.push(user)
+    await leaderboard.save()
+  } else {
+    await WeeklyLeaderboardWinners.create({ winners: [user] })
+  }
+}
+
 async function getLeaderBoard(currentUser) {
   const leaderboardData = []
   const weeklyLeaderboardData = []
   const leaderboard = await Leaderboard.findOne({}, { users: 1 })
-  const weeklyLeaderboard = await WeeklyLeaderboard.findOne({}, { users: 1, climbedAt: 1 })
+  const weeklyLeaderboard = await WeeklyLeaderboard.findOne({}, { users: 1, climbedAt: 1, endsAt: 1 }).lean()
+  if (!weeklyLeaderboard) {
+    await resetWeeklyLeaderBoard()
+  }
+
+  if (Date.now() > weeklyLeaderboard?.endsAt) {
+    console.log("/getLeaderboard: End of the week, resetting the weekly leaderboard ")
+    await addUserToWeeklyLeaderBoardWinners(weeklyLeaderboard)
+    await resetWeeklyLeaderBoard()
+  }
+
   const users = await User.find({})
   if (leaderboard) {
     for (const data of leaderboard.users) {
@@ -157,7 +192,7 @@ async function getLeaderBoard(currentUser) {
     }
   }
 
-  // Those user who has not played the game yet set their scores to 0 and return them
+  // Those user who has not played the game yet, set their scores to 0 and return them
   for (const user of users) {
     if (!leaderboard.users.some((data) => data.user.equals(user._id))) {
       leaderboardData.push({
@@ -171,7 +206,7 @@ async function getLeaderBoard(currentUser) {
   }
   const sortedLeaderboard = leaderboardData.sort((a, b) => b.score - a.score)
   const sortedWeeklyLeaderboard = weeklyLeaderboardData.sort((a, b) => b.score - a.score)
-  sortedWeeklyLeaderboard[0].climbedAt = weeklyLeaderboard.climbedAt
+  if (weeklyLeaderboard?.climbedAt) sortedWeeklyLeaderboard[0].climbedAt = weeklyLeaderboard.climbedAt
   return { all: sortedLeaderboard, weekly: sortedWeeklyLeaderboard }
 }
 async function isLevelUnlockedForUser(userId, levelId) {
@@ -364,6 +399,32 @@ async function addUserToLeaderboard(userId, score) {
     await leaderboard.save()
   }
 }
+async function updateLeaderboard(userId, score, stars) {
+  const user = await User.findOne({ _id: userId }, { username: 1, _id: 0 })
+  const leaderboard = await Leaderboard.findOne()
+
+  if (leaderboard) {
+    const userIndex = leaderboard.users.findIndex((u) => u.user.equals(userId))
+
+    if (userIndex !== -1) {
+      // User exists in the leaderboard, update the score and stars
+      leaderboard.users[userIndex].username = user.username
+      leaderboard.users[userIndex].score += score
+      leaderboard.users[userIndex].stars += stars
+    } else {
+      // User doesn't exist in the leaderboard, add them
+      leaderboard.users.push({
+        user: userId,
+        username: user.username,
+        score: score,
+        stars: stars,
+      })
+    }
+
+    await leaderboard.save()
+  }
+}
+
 async function leaderboardClimbing(userId, oldLeaderBoard) {
   const leaderboardDetail = []
   const oldRankIndex = oldLeaderBoard.findIndex((user) => user.user.equals(userId))
@@ -484,17 +545,26 @@ function getNearestFridayStartDate() {
 }
 
 async function resetWeeklyLeaderBoard() {
-  const endsAtDate = getNearestFridayStartDate()
-  await WeeklyLeaderboard.updateOne(
-    {},
-    {
-      $set: {
-        endsAt: endsAtDate,
-        users: [],
-        climbedAt: null,
-      },
+  try {
+    // Check if a leaderboard already exists
+    let leaderboard = await WeeklyLeaderboard.findOne()
+
+    if (leaderboard) {
+      // If leaderboard exists, update endsAt and users fields
+      leaderboard.endsAt = getNearestFridayStartDate()
+      leaderboard.users = []
+      leaderboard.climbedAt = null
+    } else {
+      // If leaderboard doesn't exist, create a new one
+      const endsAt = getNearestFridayStartDate()
+      leaderboard = new WeeklyLeaderboard({ endsAt, users: [], climbedAt: null })
     }
-  )
+
+    // Save the leaderboard (either newly created or updated)
+    await leaderboard.save()
+  } catch (error) {
+    console.error("Error resetting leaderboard:", error)
+  }
 }
 
 async function getRandomQuestions(categoryId) {
@@ -523,7 +593,7 @@ async function getRandomQuestions(categoryId) {
         },
       },
       { $unwind: "$questions" }, // Unwind the questions array
-      { $sample: { size: 10 } }, // Sample 10 random questions
+      { $sample: { size: 20 } }, // Sample 10 random questions
       { $replaceRoot: { newRoot: "$questions" } }, // Replace root with questions
     ])
 
@@ -534,7 +604,82 @@ async function getRandomQuestions(categoryId) {
   }
 }
 
+async function updateScore(subcategory, userId, levelId, updatedSession) {
+  let isBestScore = false
+  let score = -1
+  let stars = 0
+  const existingScore = await Score.findOne(
+    {
+      subcategory: subcategory,
+      levels: {
+        $elemMatch: {
+          userId: userId,
+          levelId: levelId,
+        },
+      },
+    },
+    {
+      "levels.$": 1,
+    }
+  ).lean()
+  if (existingScore) {
+    if (updatedSession.score > existingScore.levels[0].score) {
+      score = updatedSession.score - existingScore.levels[0].score
+      stars = (await scoreToStarsConverter(updatedSession.score)) - (await scoreToStarsConverter(existingScore.levels[0].score))
+      isBestScore = true
+      await Score.findOneAndUpdate(
+        {
+          subcategory: subcategory,
+        },
+        {
+          $set: {
+            "levels.$[elem].score": updatedSession.score,
+            "levels.$[elem].isCompleted": updatedSession.isCompleted,
+          },
+        },
+        {
+          new: true,
+          arrayFilters: [
+            {
+              "elem.userId": updatedSession.userId,
+              "elem.levelId": updatedSession.levelId,
+            },
+          ],
+        }
+      )
+    }
+    // await addScoreToLeaderboard(updatedSession.userId, score - existingScore.levels[0].score)
+  } else {
+    // Insert new document
+    score = updatedSession.score
+    stars = await scoreToStarsConverter(score)
+    await Score.updateOne(
+      {
+        subcategory: subcategory,
+      },
+      {
+        $addToSet: {
+          levels: {
+            userId: updatedSession.userId,
+            levelId: updatedSession.levelId,
+            level: updatedSession.level,
+            score: updatedSession.score,
+            isCompleted: updatedSession.isCompleted,
+          },
+        },
+      },
+      {
+        upsert: true,
+      }
+    )
+  }
+  return { isBestScore, score, stars }
+}
+
 module.exports = {
+  addUserToWeeklyLeaderBoardWinners,
+  resetWeeklyLeaderBoard,
+  getRandomQuestions,
   getNearestFridayStartDate,
   sortCategory,
   apiMessageFormat,
@@ -559,4 +704,6 @@ module.exports = {
   addScoreToLeaderboard,
   addUserToLeaderboard,
   leaderboardClimbing,
+  updateLeaderboard,
+  updateScore,
 }

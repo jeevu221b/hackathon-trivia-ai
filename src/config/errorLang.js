@@ -11,6 +11,7 @@ const commonLang = {
   INVALID_LEVEL: "Invalid Level",
   MISSING_PARAM: "Both Subcategory ID and Level is required",
   SESSION_ALREADY_COMPLETED: "Session is already completed",
+  INVALID_SCORE: "Invalid score",
 }
 
 module.exports = commonLang
