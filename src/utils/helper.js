@@ -483,6 +483,57 @@ function getNearestFridayStartDate() {
   return nextFridayDate
 }
 
+async function resetWeeklyLeaderBoard() {
+  const endsAtDate = getNearestFridayStartDate()
+  await WeeklyLeaderboard.updateOne(
+    {},
+    {
+      $set: {
+        endsAt: endsAtDate,
+        users: [],
+        climbedAt: null,
+      },
+    }
+  )
+}
+
+async function getRandomQuestions(categoryId) {
+  try {
+    // Aggregate pipeline to find Levels matching the categoryId and sample 10 random questions
+    const randomQuestions = await Level.aggregate([
+      {
+        $lookup: {
+          from: "subcategories",
+          localField: "subcategory",
+          foreignField: "_id",
+          as: "subcategory",
+        },
+      },
+      {
+        $lookup: {
+          from: "categories",
+          localField: "subcategory.category",
+          foreignField: "_id",
+          as: "category",
+        },
+      },
+      {
+        $match: {
+          "category._id": mongoose.Types.ObjectId(categoryId),
+        },
+      },
+      { $unwind: "$questions" }, // Unwind the questions array
+      { $sample: { size: 10 } }, // Sample 10 random questions
+      { $replaceRoot: { newRoot: "$questions" } }, // Replace root with questions
+    ])
+
+    return randomQuestions
+  } catch (err) {
+    console.error("Error fetching random questions:", err)
+    throw err
+  }
+}
+
 module.exports = {
   getNearestFridayStartDate,
   sortCategory,

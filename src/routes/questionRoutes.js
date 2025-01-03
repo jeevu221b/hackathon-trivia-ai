@@ -1,6 +1,6 @@
 const express = require("express")
 const mongodb = require("mongodb")
-const { getLevelQuestions, createQuestions, shuffleArray, createFacts } = require("../utils/helper")
+const { getLevelQuestions, createQuestions, shuffleArray, createFacts, getRandomQuestions } = require("../utils/helper")
 
 const router = express.Router()
 
@@ -26,6 +26,11 @@ router.post("/get/question", async (req, res) => {
     const body = req.body
     if (!mongodb.ObjectId.isValid(body.levelId)) {
       throw new Error("Invalid id")
+    }
+
+    if (body.shuffle) {
+      const response = await getRandomQuestions(body.levelId)
+      return res.status(200).send(response)
     }
     const response = await getLevelQuestions(body.levelId)
     return res.status(200).send(shuffleArray(response, body.levelId, body.multiplayer))
