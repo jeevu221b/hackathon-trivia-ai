@@ -18,6 +18,14 @@ const UserSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+    xp: {
+      type: Number,
+      default: 0,
+    },
+    gems: {
+      type: Number,
+      default: 2,
+    },
   },
   { timestamps: true }
 )

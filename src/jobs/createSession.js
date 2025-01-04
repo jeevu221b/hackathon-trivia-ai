@@ -55,10 +55,13 @@ async function updateSession(sessionId, score, isCompleted) {
   updatedSession.requiredStars = ""
   const level = await Level.findOne({ _id: updatedSession.levelId }, { subcategory: 1, level: 1 }).lean()
   const levels = await Level.find({ subcategory: level.subcategory }).lean()
+  const configs = await Config.find({}).lean()
+  let userInfo
   if (updatedSession.isCompleted) {
     // Update the score in the Score collection
-    let { isBestScore, score, stars } = await updateScore(level.subcategory, updatedSession.userId, updatedSession.levelId, updatedSession)
+    let { isBestScore, score, stars, xpAndGem } = await updateScore(level.subcategory, updatedSession.userId, updatedSession.levelId, updatedSession, configs[0].gems)
     updatedSession.isBestScore = isBestScore
+    userInfo = xpAndGem
 
     // Update the score in the Leaderboards
     if (score != -1) {
@@ -77,8 +80,7 @@ async function updateSession(sessionId, score, isCompleted) {
     }
   }
 
-  const leaderboard = await leaderboardClimbing(updatedSession.userId, oldLeaderBoard)
-  const configs = await Config.find({}).lean()
+  await leaderboardClimbing(updatedSession.userId, oldLeaderBoard)
   await weeklyLeaderboardClimbing(updatedSession.userId, oldWeeklyLeaderBoard)
   const scores = await Score.findOne({
     subcategory: level.subcategory,
@@ -113,7 +115,8 @@ async function updateSession(sessionId, score, isCompleted) {
   updatedSession.star = await scoreToStarsConverter(updatedSession.score)
   const levelInfo = await getLevelInfo(updatedSession.userId, level.subcategory)
   updatedSession.levels = levelInfo.levels
-  updatedSession.leaderboard = leaderboard
+  updatedSession.xp = userInfo.xp
+  updatedSession.gems = userInfo.gems
   return updatedSession
 }
 

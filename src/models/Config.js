@@ -28,6 +28,16 @@ const starSchema = new mongoose.Schema(
   { timestamps: true }
 )
 
+const gemsSchema = new mongoose.Schema(
+  {
+    score: {
+      type: Number,
+      required: true,
+    },
+  },
+  { timestamps: true }
+)
+
 const ConfigSchema = new mongoose.Schema(
   {
     questionPrompt: {
@@ -51,6 +61,12 @@ const ConfigSchema = new mongoose.Schema(
     },
     stars: {
       type: [starSchema],
+    },
+    gems: {
+      type: [gemsSchema],
+    },
+    baseXp: {
+      type: Number,
     },
   },
   { timestamps: true }

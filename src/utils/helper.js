@@ -60,7 +60,7 @@ async function scoreToStarsConverter(score, config) {
 
   for (const star of stars) {
     // eslint-disable-next-line no-undef
-    finalStar = star.stars.filter((item) => score <= item.score)
+    finalStar = star?.stars?.filter((item) => score <= item.score)
   }
   // eslint-disable-next-line no-undef
   if (finalStar.length === 0) {
@@ -119,12 +119,10 @@ async function getLevelInfo(userId, subcategoryId) {
 }
 
 async function addUserToWeeklyLeaderBoardWinners(weeklyLeaderboard) {
-  console.log(weeklyLeaderboard)
   weeklyLeaderboard.users.sort((a, b) => b.score - a.score)
   let user = weeklyLeaderboard.users[0]
   if (!user) return
   user = { user: user.user, username: user.username, score: user.score, stars: user.stars, climbedAt: weeklyLeaderboard.climbedAt }
-  console.log(user)
   const leaderboard = await WeeklyLeaderboardWinners.findOne()
   if (leaderboard) {
     leaderboard.winners.push(user)
@@ -358,7 +356,7 @@ async function getUserProfile(userId) {
     }
   }
   const { rank } = await getLeaderBoardRank(userId)
-  userProfile.push({ userId: userId, email: userInfo.email, username: userInfo.username, score: totalScore, stars: totalStars, rank })
+  userProfile.push({ userId: userId, email: userInfo.email, username: userInfo.username, score: totalScore, stars: totalStars, rank, xp: userInfo.xp, gems: userInfo.gems })
   return userProfile[0]
 }
 
@@ -605,10 +603,11 @@ async function getRandomQuestions(categoryId) {
   }
 }
 
-async function updateScore(subcategory, userId, levelId, updatedSession) {
+async function updateScore(subcategory, userId, levelId, updatedSession, gems) {
   let isBestScore = false
   let score = -1
   let stars = 0
+  let exp = 5
   const existingScore = await Score.findOne(
     {
       subcategory: subcategory,
@@ -654,6 +653,7 @@ async function updateScore(subcategory, userId, levelId, updatedSession) {
     // Insert new document
     score = updatedSession.score
     stars = await scoreToStarsConverter(score)
+    exp += exp * stars
     await Score.updateOne(
       {
         subcategory: subcategory,
@@ -674,10 +674,67 @@ async function updateScore(subcategory, userId, levelId, updatedSession) {
       }
     )
   }
-  return { isBestScore, score, stars }
+  const xpAndGem = await updateXp(userId, exp, gems)
+  return { isBestScore, score, stars, xpAndGem }
+}
+
+async function updateXp(userId, xp, gems) {
+  const user = await User.findOne({ _id: userId })
+  if (user) {
+    const beforeXp = findClosestSmallerScore(user.xp, gems)
+    user.xp += xp
+    const afterXp = findClosestSmallerScore(user.xp, gems)
+    if (beforeXp != afterXp) {
+      user.gems += 1
+    }
+    await user.save()
+    // Return only the desired fields
+    return {
+      xp: user.xp,
+      gems: user.gems,
+    }
+  }
+  return null // Return null if the user is not found
+}
+
+async function redeemGem(userId) {
+  const user = await User.findOne({ _id: userId })
+  if (user) {
+    user.gems -= 1
+    await user.save()
+    return {
+      gems: user.gems,
+    }
+  }
+  return null
+}
+
+function findClosestSmallerScore(target, data) {
+  let closestScore = null
+  data.map((item) => {
+    if (item.score <= target) {
+      return (closestScore = item.score)
+    }
+  })
+  return closestScore
+}
+
+async function addXp(userId, score, isFirstTime) {
+  const config = await Config.find({}, { stars: 1, baseXp: 1, gems: 1 }).lean()
+  let exp = config[0].baseXp
+  if (isFirstTime && score) {
+    const stars = await scoreToStarsConverter(score, config)
+    exp += exp * stars
+  }
+  const updatedXp = updateXp(userId, exp, config[0].gems)
+  return updatedXp
 }
 
 module.exports = {
+  addXp,
+  findClosestSmallerScore,
+  redeemGem,
+  updateXp,
   addUserToWeeklyLeaderBoardWinners,
   resetWeeklyLeaderBoard,
   getRandomQuestions,
