@@ -31,6 +31,8 @@ async function loadInitialData(userId, multiplayer, firstLogin) {
       displayName: category.displayName,
       subtext: category.subtext,
       new: category.updatedAt > new Date(new Date().setDate(new Date().getDate() - 10)),
+      shelf: category.shelf ? category.shelf : 2,
+      type: category.type,
     })
   }
 

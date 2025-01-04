@@ -92,13 +92,10 @@ async function getLevelQuestions(levelId) {
   throw new Error("Level not found :(")
 }
 
-async function getLevelInfo(userId, subcategoryId) {
+async function getLevelInfo(userId, subcategoryId, scores, nextLevel, config) {
   const bigData = { levels: [] }
-  const scores = await Score.findOne({ subcategory: subcategoryId }).lean()
-  let totalStars = 0
   for (const level of scores.levels) {
     if (level.userId.equals(userId)) {
-      totalStars += await scoreToStarsConverter(level.score)
       bigData["levels"].push({
         level: level.level,
         id: level.levelId,
@@ -106,15 +103,12 @@ async function getLevelInfo(userId, subcategoryId) {
         isCompleted: true,
         subCategory: subcategoryId,
         score: level.score,
-        star: await scoreToStarsConverter(level.score),
+        star: await scoreToStarsConverter(level.score, config),
       })
     }
   }
-  const isUniqLevel = await isUniqueLevel(4)
-  if (totalStars >= isUniqLevel.starsRequired) {
-    const getIdOfUniqLevel = await Level.findOne({ subcategory: subcategoryId, level: 4 }, { _id: true, level: true })
-    if (getIdOfUniqLevel) bigData["levels"].push({ level: 4, id: getIdOfUniqLevel._id, isUnlocked: true, isCompleted: false, subCategory: subcategoryId, score: 0, star: 0 })
-  }
+  if(nextLevel){
+  bigData["levels"].push(nextLevel)}
   return bigData
 }
 
@@ -616,11 +610,11 @@ async function getRandomQuestions(categoryId) {
   }
 }
 
-async function updateScore(subcategory, userId, levelId, updatedSession, gems, titles) {
+async function updateScore(subcategory, userId, levelId, updatedSession, gems, titles, config) {
   let isBestScore = false
   let score = -1
   let stars = 0
-  let exp = 5
+  let xp = 5
   const existingScore = await Score.findOne(
     {
       subcategory: subcategory,
@@ -638,7 +632,7 @@ async function updateScore(subcategory, userId, levelId, updatedSession, gems, t
   if (existingScore) {
     if (updatedSession.score > existingScore.levels[0].score) {
       score = updatedSession.score - existingScore.levels[0].score
-      stars = (await scoreToStarsConverter(updatedSession.score)) - (await scoreToStarsConverter(existingScore.levels[0].score))
+      stars = (await scoreToStarsConverter(updatedSession.score, config)) - (await scoreToStarsConverter(existingScore.levels[0].score, config))
       isBestScore = true
       await Score.findOneAndUpdate(
         {
@@ -661,12 +655,11 @@ async function updateScore(subcategory, userId, levelId, updatedSession, gems, t
         }
       )
     }
-    // await addScoreToLeaderboard(updatedSession.userId, score - existingScore.levels[0].score)
   } else {
     // Insert new document
     score = updatedSession.score
-    stars = await scoreToStarsConverter(score)
-    exp += exp * stars
+    stars = await scoreToStarsConverter(score, config)
+    xp += xp * stars
     await Score.updateOne(
       {
         subcategory: subcategory,
@@ -687,31 +680,50 @@ async function updateScore(subcategory, userId, levelId, updatedSession, gems, t
       }
     )
   }
-  const xpAndGem = await updateXp(userId, exp, gems, titles)
+  const xpAndGem = await updateXp(userId, xp, gems, titles)
   return { isBestScore, score, stars, xpAndGem }
 }
 
 async function updateXp(userId, xp, gems, titles) {
-  const user = await User.findOne({ _id: userId })
-  if (user) {
-    const beforeXp = findClosestSmallerScore(user.xp, gems)
-    user.xp += xp
-    const afterXp = findClosestSmallerScore(user.xp, gems)
-    if (beforeXp != afterXp) {
-      user.gems += 1
+  try {
+    // Fetch the user from the database
+    const user = await User.findOne({ _id: userId });
+    if (!user) return null; // Return null if the user is not found
+
+    // Track whether the user has earned gems
+    let earnedGems = 0;
+
+    // Determine the XP before and after updating
+    const beforeXp = findClosestSmallerScore(user.xp, gems);
+    user.xp += xp;
+    const afterXp = findClosestSmallerScore(user.xp, gems);
+
+    // Award gems if XP threshold is crossed
+    if (beforeXp !== afterXp) {
+      earnedGems = 1; // Assume one gem per threshold crossing
+      user.gems += earnedGems;
     }
-    const closestTitle = updateTitle(user.xp, titles, user.title)
+
+    // Update the user's title based on new XP
+    const closestTitle = updateTitle(user.xp, titles, user.title);
     if (closestTitle) {
-      user.title = closestTitle.index
+      user.title = closestTitle.index;
     }
-    await user.save()
-    // Return only the desired fields
+
+    // Save the updated user data
+    await user.save();
+
+    // Return the updated information
     return {
-      xp: user.xp,
-      gems: user.gems,
-    }
+      gems: earnedGems,
+      xp: xp,
+      totalXp: user.xp,
+      totalGems: user.gems,
+    };
+  } catch (error) {
+    console.error('Error updating XP:', error);
+    throw error; // Re-throw the error for further handling if needed
   }
-  return null // Return null if the user is not found
 }
 
 async function redeemGem(userId) {
@@ -750,7 +762,7 @@ function updateTitle(score, data, titleIndex) {
 }
 
 async function addXp({ userId, score, isFirstTime, winner }) {
-  const config = await Config.find({}, { stars: 1, baseXp: 1, gems: 1, multiplayerMultiplier: 1 }).lean()
+  const config = await Config.find({}, { stars: 1, baseXp: 1, gems: 1, multiplayerMultiplier: 1, titles:1 }).lean()
   let exp = config[0].baseXp
   if (isFirstTime && score) {
     const stars = await scoreToStarsConverter(score, config)
@@ -759,7 +771,7 @@ async function addXp({ userId, score, isFirstTime, winner }) {
   if (winner && typeof winner === "boolean") {
     exp += exp * config[0].multiplayerMultiplier
   }
-  const updatedXp = updateXp(userId, exp, config[0].gems)
+  const updatedXp = updateXp(userId, exp, config[0].gems, config[0].titles)
   return updatedXp
 }
 
@@ -837,7 +849,12 @@ async function getTitle(index) {
   return config[0].titles[index].title
 }
 
+function getUnlockedLevel(level, id, subacategory){
+    return{level, id, isUnlocked: true, isCompleted: false, subCategory: subacategory, score: 0, star: 0}
+}
+
 module.exports = {
+  getUnlockedLevel,
   getTitle,
   getCategoryId,
   addRecentlyPlayedCategory,

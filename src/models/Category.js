@@ -25,6 +25,14 @@ const CategorySchema = new mongoose.Schema(
       type: String,
       trim: true,
     },
+    shelf: {
+      type: Number,
+      default: 2,
+    },
+    type: {
+      type: String,
+      default: "All",
+    },
   },
   { timestamps: true }
 )
