@@ -6,7 +6,7 @@ const Score = require("../models/Score")
 
 // eslint-disable-next-line no-unused-vars
 const { ObjectId } = require("mongodb")
-const { scoreToStarsConverter, getSubcategoryScore, sortCategory } = require("../utils/helper")
+const { scoreToStarsConverter, getSubcategoryScore, sortCategory, getRecentlyPlayedCategory } = require("../utils/helper")
 const Difficulty = require("../models/Difficulty")
 
 async function loadInitialData(userId, multiplayer, firstLogin) {
@@ -20,7 +20,8 @@ async function loadInitialData(userId, multiplayer, firstLogin) {
   ])
   let totalScore = 0
 
-  const sortedCategories = sortCategory(categories)
+  const recentlyPlayedCategory = await getRecentlyPlayedCategory(userId)
+  const sortedCategories = sortCategory(categories, recentlyPlayedCategory)
   for (let category of sortedCategories) {
     bigData["categories"].push({
       id: category._id,

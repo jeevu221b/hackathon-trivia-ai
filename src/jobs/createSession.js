@@ -1,7 +1,17 @@
 const Session = require("../models/Session")
 const Level = require("../models/Level")
 const Score = require("../models/Score")
-const { scoreToStarsConverter, getLevelInfo, leaderboardClimbing, updateLeaderboard, updateScore, resetWeeklyLeaderBoard, addUserToWeeklyLeaderBoardWinners } = require("../utils/helper")
+const {
+  scoreToStarsConverter,
+  getLevelInfo,
+  leaderboardClimbing,
+  updateLeaderboard,
+  updateScore,
+  resetWeeklyLeaderBoard,
+  addUserToWeeklyLeaderBoardWinners,
+  getCategoryId,
+  addRecentlyPlayedCategory,
+} = require("../utils/helper")
 const Config = require("../models/Config")
 const Leaderboard = require("../models/Leaderboard")
 const { SESSION_ALREADY_COMPLETED, INVALID_SESSION_ID, INVALID_LEVEL, INVALID_SCORE } = require("../config/errorLang")
@@ -56,6 +66,8 @@ async function updateSession(sessionId, score, isCompleted) {
   const level = await Level.findOne({ _id: updatedSession.levelId }, { subcategory: 1, level: 1 }).lean()
   const levels = await Level.find({ subcategory: level.subcategory }).lean()
   const configs = await Config.find({}).lean()
+  const categoryId = await getCategoryId(level.subcategory)
+  await addRecentlyPlayedCategory(updatedSession.userId, categoryId)
   let userInfo
   if (updatedSession.isCompleted) {
     // Update the score in the Score collection

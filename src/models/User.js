@@ -1,5 +1,14 @@
 const mongoose = require("mongoose")
 
+const recentlyPlayedSchema = new mongoose.Schema(
+  {
+    categories: {
+      type: Array,
+    },
+  },
+  { timestamps: true }
+)
+
 const UserSchema = new mongoose.Schema(
   {
     email: {
@@ -25,6 +34,9 @@ const UserSchema = new mongoose.Schema(
     gems: {
       type: Number,
       default: 2,
+    },
+    recentlyPlayed: {
+      type: [recentlyPlayedSchema],
     },
   },
   { timestamps: true }

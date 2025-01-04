@@ -68,6 +68,9 @@ const ConfigSchema = new mongoose.Schema(
     baseXp: {
       type: Number,
     },
+    multiplayerMultiplier: {
+      type: Number,
+    },
   },
   { timestamps: true }
 )

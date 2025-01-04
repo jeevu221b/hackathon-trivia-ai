@@ -485,7 +485,7 @@ async function leaderboardClimbing(userId, oldLeaderBoard) {
   return leaderboardDetail
 }
 
-function sortCategory(categories) {
+function sortCategory(categories, recentlyPlayedCategory) {
   const currentTime = Date.now()
   const fifteenDaysInMs = 15 * 24 * 60 * 60 * 1000
   const cutoffTime = currentTime - fifteenDaysInMs
@@ -515,6 +515,9 @@ function sortCategory(categories) {
   }
 
   // Combine the recentCategories (already shuffled) and otherCategories (already shuffled)
+  if (recentlyPlayedCategory) {
+    return moveRecentlyPlayedCategoryToTop(recentCategories.concat(otherCategories), recentlyPlayedCategory)
+  }
   return recentCategories.concat(otherCategories)
 }
 
@@ -719,18 +722,95 @@ function findClosestSmallerScore(target, data) {
   return closestScore
 }
 
-async function addXp(userId, score, isFirstTime) {
-  const config = await Config.find({}, { stars: 1, baseXp: 1, gems: 1 }).lean()
+async function addXp({ userId, score, isFirstTime, winner }) {
+  const config = await Config.find({}, { stars: 1, baseXp: 1, gems: 1, multiplayerMultiplier: 1 }).lean()
   let exp = config[0].baseXp
   if (isFirstTime && score) {
     const stars = await scoreToStarsConverter(score, config)
     exp += exp * stars
   }
+  if (winner && typeof winner === "boolean") {
+    exp += exp * config[0].multiplayerMultiplier
+  }
   const updatedXp = updateXp(userId, exp, config[0].gems)
   return updatedXp
 }
 
+async function addMultiplayerXp(scores) {
+  const usersScore = []
+  for (const score of scores) {
+    usersScore.push(await addXp({ userId: score.userId, winner: score.winner }))
+  }
+  return usersScore
+}
+
+async function addRecentlyPlayedCategory(userId, categoryId) {
+  const user = await User.findOne({ _id: userId })
+  if (user) {
+    // Initialize recentlyPlayed if it doesn't exist or is empty
+    if (!user.recentlyPlayed || user.recentlyPlayed.length === 0) {
+      user.recentlyPlayed = [{ categories: [] }]
+    }
+
+    // Initialize categories if it doesn't exist
+    if (!user.recentlyPlayed[0].categories) {
+      user.recentlyPlayed[0].categories = []
+    }
+
+    if (user.recentlyPlayed[0].categories.length <= 5) {
+      user.recentlyPlayed[0].categories.push(categoryId)
+    } else {
+      // Remove the first element of the categories array
+      user.recentlyPlayed[0].categories.shift()
+      // Push a new category
+      user.recentlyPlayed[0].categories.push(categoryId)
+    }
+
+    // Save the updated user document
+    await user.save()
+    return user
+  }
+  return null
+}
+
+async function getRecentlyPlayedCategory(userId) {
+  const user = await User.findOne({ _id: userId })
+  if (user) {
+    const currentTime = Date.now()
+    const eightHoursInMs = 8 * 60 * 60 * 1000 // 8 hours in milliseconds
+    const cutoffTime = currentTime - eightHoursInMs
+    if (new Date(user.recentlyPlayed[0].updatedAt).getTime() > cutoffTime) {
+      return user.recentlyPlayed[0].categories[user.recentlyPlayed[0].categories.length - 1]
+    }
+  }
+  return null
+}
+
+function moveRecentlyPlayedCategoryToTop(categories, userId) {
+  const index = categories.findIndex((category) => category._id.equals(userId))
+  if (index === -1) {
+    console.log("Category not found")
+    return categories
+  }
+  const recentlyPlayedCategory = categories[index]
+  categories.splice(index, 1)
+  categories.unshift(recentlyPlayedCategory)
+  return categories
+}
+
+async function getCategoryId(subcategoryId) {
+  const subcategory = await Subcategory.findOne({ _id: subcategoryId })
+  if (subcategory) {
+    return subcategory.category
+  }
+  return null
+}
+
 module.exports = {
+  getCategoryId,
+  addRecentlyPlayedCategory,
+  getRecentlyPlayedCategory,
+  addMultiplayerXp,
   addXp,
   findClosestSmallerScore,
   redeemGem,
