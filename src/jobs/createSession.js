@@ -71,7 +71,7 @@ async function updateSession(sessionId, score, isCompleted) {
   let userInfo
   if (updatedSession.isCompleted) {
     // Update the score in the Score collection
-    let { isBestScore, score, stars, xpAndGem } = await updateScore(level.subcategory, updatedSession.userId, updatedSession.levelId, updatedSession, configs[0].gems)
+    let { isBestScore, score, stars, xpAndGem } = await updateScore(level.subcategory, updatedSession.userId, updatedSession.levelId, updatedSession, configs[0].gems, configs[0].titles)
     updatedSession.isBestScore = isBestScore
     userInfo = xpAndGem
 

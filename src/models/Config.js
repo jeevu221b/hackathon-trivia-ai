@@ -38,6 +38,17 @@ const gemsSchema = new mongoose.Schema(
   { timestamps: true }
 )
 
+const titlesSchema = new mongoose.Schema({
+  title: {
+    type: String,
+    required: true,
+  },
+  score: {
+    type: Number,
+    required: true,
+  },
+})
+
 const ConfigSchema = new mongoose.Schema(
   {
     questionPrompt: {
@@ -70,6 +81,9 @@ const ConfigSchema = new mongoose.Schema(
     },
     multiplayerMultiplier: {
       type: Number,
+    },
+    titles: {
+      type: [titlesSchema],
     },
   },
   { timestamps: true }

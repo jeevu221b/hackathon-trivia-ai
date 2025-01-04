@@ -356,7 +356,17 @@ async function getUserProfile(userId) {
     }
   }
   const { rank } = await getLeaderBoardRank(userId)
-  userProfile.push({ userId: userId, email: userInfo.email, username: userInfo.username, score: totalScore, stars: totalStars, rank, xp: userInfo.xp, gems: userInfo.gems })
+  userProfile.push({
+    userId: userId,
+    email: userInfo.email,
+    username: userInfo.username,
+    score: totalScore,
+    stars: totalStars,
+    rank,
+    xp: userInfo.xp,
+    gems: userInfo.gems,
+    title: await getTitle(userInfo.title),
+  })
   return userProfile[0]
 }
 
@@ -606,7 +616,7 @@ async function getRandomQuestions(categoryId) {
   }
 }
 
-async function updateScore(subcategory, userId, levelId, updatedSession, gems) {
+async function updateScore(subcategory, userId, levelId, updatedSession, gems, titles) {
   let isBestScore = false
   let score = -1
   let stars = 0
@@ -677,11 +687,11 @@ async function updateScore(subcategory, userId, levelId, updatedSession, gems) {
       }
     )
   }
-  const xpAndGem = await updateXp(userId, exp, gems)
+  const xpAndGem = await updateXp(userId, exp, gems, titles)
   return { isBestScore, score, stars, xpAndGem }
 }
 
-async function updateXp(userId, xp, gems) {
+async function updateXp(userId, xp, gems, titles) {
   const user = await User.findOne({ _id: userId })
   if (user) {
     const beforeXp = findClosestSmallerScore(user.xp, gems)
@@ -689,6 +699,10 @@ async function updateXp(userId, xp, gems) {
     const afterXp = findClosestSmallerScore(user.xp, gems)
     if (beforeXp != afterXp) {
       user.gems += 1
+    }
+    const closestTitle = updateTitle(user.xp, titles, user.title)
+    if (closestTitle) {
+      user.title = closestTitle.index
     }
     await user.save()
     // Return only the desired fields
@@ -720,6 +734,19 @@ function findClosestSmallerScore(target, data) {
     }
   })
   return closestScore
+}
+function updateTitle(score, data, titleIndex) {
+  const closestTitle = { index: null }
+  data.some((title, index) => {
+    if (score <= title.score) {
+      closestTitle.index = index
+      return true
+    }
+  })
+  if (closestTitle.index === null || closestTitle.index == titleIndex) {
+    return null
+  }
+  return closestTitle
 }
 
 async function addXp({ userId, score, isFirstTime, winner }) {
@@ -805,8 +832,13 @@ async function getCategoryId(subcategoryId) {
   }
   return null
 }
+async function getTitle(index) {
+  const config = await Config.find({}, { titles: 1 }).lean()
+  return config[0].titles[index].title
+}
 
 module.exports = {
+  getTitle,
   getCategoryId,
   addRecentlyPlayedCategory,
   getRecentlyPlayedCategory,

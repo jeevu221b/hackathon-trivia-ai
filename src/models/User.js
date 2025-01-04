@@ -38,6 +38,10 @@ const UserSchema = new mongoose.Schema(
     recentlyPlayed: {
       type: [recentlyPlayedSchema],
     },
+    title: {
+      type: Number,
+      default: 0,
+    },
   },
   { timestamps: true }
 )
