@@ -37,7 +37,7 @@ async function createSession(userId, levelId, multiplayer) {
   return session._id
 }
 
-async function updateSession(sessionId, score, isCompleted) {
+async function updateSession(sessionId, score, isCompleted, streak) {
   const session = await Session.findById(sessionId).lean()
   if (!session) {
     throw new Error(INVALID_SESSION_ID)
@@ -49,6 +49,10 @@ async function updateSession(sessionId, score, isCompleted) {
   if (score > 10 || score < 0) {
     throw new Error(INVALID_SCORE)
   }
+  if(streak){
+  if (typeof streak !== "number" || streak < 0) {
+      throw new Error("Invalid streak")
+  }}
 
   const updatedSession = await Session.findByIdAndUpdate(sessionId, { score: score, ...(!isCompleted ? { isActive: false } : {}), isCompleted }, { new: true }).lean()
   if (!updatedSession) {
@@ -69,7 +73,7 @@ async function updateSession(sessionId, score, isCompleted) {
   let userInfo
   if (updatedSession.isCompleted) {
     // Update the score in the Score collection
-    let { isBestScore, score, stars, xpAndGem } = await updateScore(level.subcategory, updatedSession.userId, updatedSession.levelId, updatedSession, configs[0].gems, configs[0].titles, configs)
+    let { isBestScore, score, stars, xpAndGem } = await updateScore(level.subcategory, updatedSession.userId, updatedSession.levelId, updatedSession, configs[0].gems, configs[0].titles, configs, streak)
     updatedSession.isBestScore = isBestScore
     userInfo = xpAndGem
 
@@ -128,6 +132,7 @@ async function updateSession(sessionId, score, isCompleted) {
   updatedSession.star = await scoreToStarsConverter(updatedSession.score, configs)
   const levelInfo = await getLevelInfo(updatedSession.userId, level.subcategory, scores, nextUnlockedLevel[0], configs)
   updatedSession.levels = levelInfo.levels
+  updatedSession.requiredXp = `You need ${userInfo.requiredXp} XP to unlock a gem :D`
   updatedSession.xp = userInfo.xp
   updatedSession.gems = userInfo.gems
   updatedSession.totalXp = userInfo.totalXp

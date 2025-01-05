@@ -35,7 +35,7 @@ router.post("/update/session", async (req, res) => {
     } else if (typeof body.isCompleted !== "boolean") {
       throw new Error("'isCompleted' should be a boolean value")
     }
-    const response = await updateSession(body.sessionId, body.score, body.isCompleted)
+    const response = await updateSession(body.sessionId, body.score, body.isCompleted, body.streak)
     return res.status(200).send(response)
   } catch (error) {
     console.error(error)
