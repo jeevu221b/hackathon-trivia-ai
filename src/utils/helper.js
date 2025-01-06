@@ -838,50 +838,45 @@ async function getRecentlyPlayedCategory(userId) {
     const bigData = { categories: [] }
 
     if (user) {
-      const currentTime = Date.now()
-      const eightHoursInMs = 8 * 60 * 60 * 1000 // 8 hours in milliseconds
-      const cutoffTime = currentTime - eightHoursInMs
-      const recentUpdateTime = new Date(user?.recentlyPlayed[0]?.updatedAt).getTime()
-      if (recentUpdateTime > cutoffTime) {
-        const orderedIds = user.recentlyPlayed[0].categories.reverse()
-        // Fetch the documents for the ordered IDs
-        const documents = await Category.find({ _id: { $in: orderedIds } })
+      const orderedIds = user.recentlyPlayed[0].categories.reverse()
+      // Fetch the documents for the ordered IDs
+      const documents = await Category.find({ _id: { $in: orderedIds } })
 
-        // Create a mapping from ID to document
-        const documentMap = documents.reduce((map, doc) => {
-          map[doc._id.toString()] = doc
-          return map
-        }, {})
+      // Create a mapping from ID to document
+      const documentMap = documents.reduce((map, doc) => {
+        map[doc._id.toString()] = doc
+        return map
+      }, {})
 
-        // Sort the documents based on the ordered IDs
-        const sortedDocuments = orderedIds.filter((id) => documentMap[id]).map((id) => documentMap[id])
+      // Sort the documents based on the ordered IDs
+      const sortedDocuments = orderedIds.filter((id) => documentMap[id]).map((id) => documentMap[id])
 
-        // Use a Set to track already added IDs
-        const addedCategoryIds = new Set()
+      // Use a Set to track already added IDs
+      const addedCategoryIds = new Set()
 
-        for (let category of sortedDocuments) {
-          const categoryId = category._id.toString() // Ensure toString() for consistent comparison
+      for (let category of sortedDocuments) {
+        const categoryId = category._id.toString() // Ensure toString() for consistent comparison
 
-          if (!addedCategoryIds.has(categoryId)) {
-            bigData.categories.push({
-              id: category._id,
-              name: category.name,
-              image: category.image ? category.image : "category.png",
-              isBanner: category.isBanner,
-              displayName: category.displayName,
-              subtext: category.subtext,
-              new: category.updatedAt > new Date(new Date().setDate(new Date().getDate() - 10)),
-              shelf: category.shelf ? category.shelf : 2,
-              type: category.type,
-            })
+        if (!addedCategoryIds.has(categoryId)) {
+          bigData.categories.push({
+            id: category._id,
+            name: category.name,
+            image: category.image ? category.image : "category.png",
+            isBanner: category.isBanner,
+            displayName: category.displayName,
+            subtext: category.subtext,
+            new: category.updatedAt > new Date(new Date().setDate(new Date().getDate() - 10)),
+            shelf: category.shelf ? category.shelf : 2,
+            type: category.type,
+            createdAt: category.updatedAt,
+          })
 
-            addedCategoryIds.add(categoryId) // Add to Set after pushing
-          }
+          addedCategoryIds.add(categoryId) // Add to Set after pushing
         }
       }
     }
 
-    return bigData
+    return bigData.categories
   } catch (error) {
     console.error("Error fetching recently played categories:", error)
     throw error // Handle or propagate the error as needed
