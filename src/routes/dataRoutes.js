@@ -1,7 +1,7 @@
 const express = require("express")
 const mongodb = require("mongodb")
 const { loadInitialData } = require("../jobs/loadInitialData")
-const { getLeaderBoard, getSubcategoryScore, getUserProfile } = require("../utils/helper")
+const { getLeaderBoard, getSubcategoryScore, getUserProfile, getRecentlyPlayedCategory } = require("../utils/helper")
 const User = require("../models/User")
 const router = express.Router()
 
@@ -54,6 +54,15 @@ router.get("/get/leaderboard", async (req, res) => {
 router.get("/get/profile", async (req, res) => {
   try {
     const response = await getUserProfile(req.body.internaluserId)
+    return res.status(200).send(response)
+  } catch (error) {
+    return res.status(error.statusCode || 400).send(error.message)
+  }
+})
+
+router.get("/get/recentlyplayed", async (req, res) => {
+  try {
+    const response = await getRecentlyPlayedCategory(req.body.internaluserId)
     return res.status(200).send(response)
   } catch (error) {
     return res.status(error.statusCode || 400).send(error.message)

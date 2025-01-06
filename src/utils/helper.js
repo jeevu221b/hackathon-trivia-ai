@@ -16,6 +16,7 @@ const jwt = require("jsonwebtoken")
 const User = require("../models/User")
 const WeeklyLeaderboard = require("../models/WeeklyLeaderboard")
 const WeeklyLeaderboardWinners = require("../models/WeeklyLeaderboardWinners")
+const Category = require("../models/Category")
 
 env.config()
 
@@ -490,7 +491,7 @@ async function leaderboardClimbing(userId, oldLeaderBoard) {
   return leaderboardDetail
 }
 
-function sortCategory(categories, recentlyPlayedCategory) {
+function sortCategory(categories) {
   const currentTime = Date.now()
   const fifteenDaysInMs = 15 * 24 * 60 * 60 * 1000
   const cutoffTime = currentTime - fifteenDaysInMs
@@ -517,11 +518,6 @@ function sortCategory(categories, recentlyPlayedCategory) {
     recentCategories.push(lastCategory)
   } else {
     otherCategories.push(lastCategory)
-  }
-
-  // Combine the recentCategories (already shuffled) and otherCategories (already shuffled)
-  if (recentlyPlayedCategory) {
-    return moveRecentlyPlayedCategoryToTop(recentCategories.concat(otherCategories), recentlyPlayedCategory)
   }
   return recentCategories.concat(otherCategories)
 }
@@ -681,7 +677,7 @@ async function updateScore(subcategory, userId, levelId, updatedSession, gems, t
       }
     )
   }
-  if(streak){
+  if (streak) {
     xp += streak
   }
   const xpAndGem = await updateXp(userId, xp, gems, titles)
@@ -696,7 +692,7 @@ async function updateXp(userId, xp, gems, titles) {
 
     // Track whether the user has earned gems
     let earnedGems = 0
-    let requiredXp = 0
+    let requiredXp
 
     // Determine the XP before and after updating
     const beforeXp = findClosestSmallerScore(user.xp, gems)
@@ -707,10 +703,9 @@ async function updateXp(userId, xp, gems, titles) {
     if (beforeXp !== afterXp) {
       earnedGems = 1 // Assume one gem per threshold crossing
       user.gems += earnedGems
-    } else {
-      const points = xpToGetGem(user.xp, gems)
-      if (points) requiredXp = xpToGetGem(user.xp, gems) - user.xp
     }
+    const points = xpToGetGem(user.xp, gems)
+    if (points) requiredXp = xpToGetGem(user.xp, gems) - user.xp
 
     // Update the user's title based on new XP
     const closestTitle = updateTitle(user.xp, titles, user.title)
@@ -758,15 +753,18 @@ function findClosestSmallerScore(target, data) {
 }
 function xpToGetGem(target, data) {
   let indice = 0
-  data.map((item, index) => {
-    if (item.score <= target && index != 0) {
+  data.some((item, index) => {
+    if (target < item.score) {
       indice += index
-    } else if (item.score <= target) {
-      indice = index
+      return true
     }
+    return false
   })
-  if (data[indice + 1] == undefined) return null
-  return data[indice + 1].score
+
+  if (data[indice].score) {
+    return data[indice].score
+  }
+  return null
 }
 function updateTitle(score, data, titleIndex) {
   const closestTitle = { index: null }
@@ -834,28 +832,60 @@ async function addRecentlyPlayedCategory(userId, categoryId) {
 }
 
 async function getRecentlyPlayedCategory(userId) {
-  const user = await User.findOne({ _id: userId })
-  if (user) {
-    const currentTime = Date.now()
-    const eightHoursInMs = 8 * 60 * 60 * 1000 // 8 hours in milliseconds
-    const cutoffTime = currentTime - eightHoursInMs
-    if (new Date(user?.recentlyPlayed[0]?.updatedAt).getTime() > cutoffTime) {
-      return user.recentlyPlayed[0].categories[user.recentlyPlayed[0].categories.length - 1]
-    }
-  }
-  return null
-}
+  try {
+    const user = await User.findOne({ _id: userId })
+    console.log("UserID", userId)
+    const bigData = { categories: [] }
 
-function moveRecentlyPlayedCategoryToTop(categories, userId) {
-  const index = categories.findIndex((category) => category._id.equals(userId))
-  if (index === -1) {
-    console.log("Category not found")
-    return categories
+    if (user) {
+      const currentTime = Date.now()
+      const eightHoursInMs = 8 * 60 * 60 * 1000 // 8 hours in milliseconds
+      const cutoffTime = currentTime - eightHoursInMs
+      const recentUpdateTime = new Date(user?.recentlyPlayed[0]?.updatedAt).getTime()
+      if (recentUpdateTime > cutoffTime) {
+        const orderedIds = user.recentlyPlayed[0].categories.reverse()
+        // Fetch the documents for the ordered IDs
+        const documents = await Category.find({ _id: { $in: orderedIds } })
+
+        // Create a mapping from ID to document
+        const documentMap = documents.reduce((map, doc) => {
+          map[doc._id.toString()] = doc
+          return map
+        }, {})
+
+        // Sort the documents based on the ordered IDs
+        const sortedDocuments = orderedIds.filter((id) => documentMap[id]).map((id) => documentMap[id])
+
+        // Use a Set to track already added IDs
+        const addedCategoryIds = new Set()
+
+        for (let category of sortedDocuments) {
+          const categoryId = category._id.toString() // Ensure toString() for consistent comparison
+
+          if (!addedCategoryIds.has(categoryId)) {
+            bigData.categories.push({
+              id: category._id,
+              name: category.name,
+              image: category.image ? category.image : "category.png",
+              isBanner: category.isBanner,
+              displayName: category.displayName,
+              subtext: category.subtext,
+              new: category.updatedAt > new Date(new Date().setDate(new Date().getDate() - 10)),
+              shelf: category.shelf ? category.shelf : 2,
+              type: category.type,
+            })
+
+            addedCategoryIds.add(categoryId) // Add to Set after pushing
+          }
+        }
+      }
+    }
+
+    return bigData
+  } catch (error) {
+    console.error("Error fetching recently played categories:", error)
+    throw error // Handle or propagate the error as needed
   }
-  const recentlyPlayedCategory = categories[index]
-  categories.splice(index, 1)
-  categories.unshift(recentlyPlayedCategory)
-  return categories
 }
 
 async function getCategoryId(subcategoryId) {

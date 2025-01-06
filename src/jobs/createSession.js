@@ -49,10 +49,12 @@ async function updateSession(sessionId, score, isCompleted, streak) {
   if (score > 10 || score < 0) {
     throw new Error(INVALID_SCORE)
   }
-  if(streak){
-  if (typeof streak !== "number" || streak < 0) {
-      throw new Error("Invalid streak")
-  }}
+  if (streak) {
+    if (typeof streak !== "number" || streak < 0 || streak > 20) {
+      console.log("Invalid streak")
+      streak = 0
+    }
+  }
 
   const updatedSession = await Session.findByIdAndUpdate(sessionId, { score: score, ...(!isCompleted ? { isActive: false } : {}), isCompleted }, { new: true }).lean()
   if (!updatedSession) {
@@ -73,7 +75,16 @@ async function updateSession(sessionId, score, isCompleted, streak) {
   let userInfo
   if (updatedSession.isCompleted) {
     // Update the score in the Score collection
-    let { isBestScore, score, stars, xpAndGem } = await updateScore(level.subcategory, updatedSession.userId, updatedSession.levelId, updatedSession, configs[0].gems, configs[0].titles, configs, streak)
+    let { isBestScore, score, stars, xpAndGem } = await updateScore(
+      level.subcategory,
+      updatedSession.userId,
+      updatedSession.levelId,
+      updatedSession,
+      configs[0].gems,
+      configs[0].titles,
+      configs,
+      streak
+    )
     updatedSession.isBestScore = isBestScore
     userInfo = xpAndGem
 
@@ -104,7 +115,7 @@ async function updateSession(sessionId, score, isCompleted, streak) {
     updatedSession.doesNextLevelExist = true
     updatedSession.nextLevelId = levels[doesNextLevelExists]._id
     const isUniqueLevel = configs[0].levels.filter((item) => item.level === updatedSession.level + 1)[0]
-    const hasPlayedNextLevel = scores.levels.findIndex((l) => l.userId.equals(updatedSession.userId)&& l.level === updatedSession.level + 1 && l.isCompleted)
+    const hasPlayedNextLevel = scores.levels.findIndex((l) => l.userId.equals(updatedSession.userId) && l.level === updatedSession.level + 1 && l.isCompleted)
     if (hasPlayedNextLevel != -1) {
       updatedSession.isNextLevelUnlocked = true
     } else if (isUniqueLevel) {
@@ -116,11 +127,11 @@ async function updateSession(sessionId, score, isCompleted, streak) {
       if (isUniqueLevel.starsRequired - totalScore > 0) {
         updatedSession.requiredStars = `Score ${isUniqueLevel.starsRequired - totalScore} more ${isUniqueLevel.starsRequired - totalScore > 1 ? "stars" : "star"} to unlock the next level!`
         updatedSession.isNextLevelUnlocked = false
-      }else {
-      updatedSession.isNextLevelUnlocked = true
-      nextUnlockedLevel.push(getUnlockedLevel(updatedSession.level + 1, levels[doesNextLevelExists]._id, level.subcategory))
-    }
-    }else{
+      } else {
+        updatedSession.isNextLevelUnlocked = true
+        nextUnlockedLevel.push(getUnlockedLevel(updatedSession.level + 1, levels[doesNextLevelExists]._id, level.subcategory))
+      }
+    } else {
       updatedSession.isNextLevelUnlocked = true
       nextUnlockedLevel.push(getUnlockedLevel(updatedSession.level + 1, levels[doesNextLevelExists]._id, level.subcategory))
     }
