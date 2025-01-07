@@ -869,6 +869,7 @@ async function getRecentlyPlayedCategory(userId) {
             shelf: category.shelf ? category.shelf : 2,
             type: category.type,
             createdAt: category.updatedAt,
+            metaData: { showInfo: false },
           })
 
           addedCategoryIds.add(categoryId) // Add to Set after pushing

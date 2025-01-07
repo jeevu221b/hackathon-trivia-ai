@@ -30,7 +30,6 @@ const metaDataSchema = new mongoose.Schema({
     type: Boolean,
     default: false,
   },
-
 })
 
 const CategorySchema = new mongoose.Schema(
@@ -66,9 +65,7 @@ const CategorySchema = new mongoose.Schema(
       type: String,
       default: "All",
     },
-    metaData:{
-      type: [metaDataSchema],
-    }
+    metaData: metaDataSchema,
   },
   { timestamps: true }
 )

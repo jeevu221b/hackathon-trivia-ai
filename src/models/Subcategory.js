@@ -1,7 +1,7 @@
 const mongoose = require("mongoose")
 
 const metaDataSchema = new mongoose.Schema({
-    type: {
+  type: {
     type: String,
     trim: true,
     default: "",
@@ -30,7 +30,6 @@ const metaDataSchema = new mongoose.Schema({
     type: Boolean,
     default: false,
   },
-
 })
 
 const SubcategorySchema = new mongoose.Schema(
@@ -48,9 +47,7 @@ const SubcategorySchema = new mongoose.Schema(
     facts: {
       type: Array,
     },
-     metaData:{
-      type: [metaDataSchema],
-    }
+    metaData: metaDataSchema,
   },
   { timestamps: true }
 )

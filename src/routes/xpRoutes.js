@@ -1,6 +1,7 @@
 const express = require("express")
 const { redeemGem, addXp, addMultiplayerXp } = require("../utils/helper")
 const mongodb = require("mongodb")
+const Config = require("../models/Config")
 const router = express.Router()
 
 router.post("/redeem/gem", async (req, res) => {
@@ -12,6 +13,7 @@ router.post("/redeem/gem", async (req, res) => {
     const response = await redeemGem(internaluserId)
     return res.status(200).send(response)
   } catch (error) {
+    console.error(error)
     return res.status(error.statusCode || 400).send(error.message)
   }
 })
@@ -25,6 +27,7 @@ router.post("/update/xp", async (req, res) => {
     const response = await addXp({ userId: internaluserId, score: score, isFirstTime: isFirstTime })
     return res.status(200).send(response)
   } catch (error) {
+    console.error(error)
     return res.status(error.statusCode || 400).send(error.message)
   }
 })
@@ -39,6 +42,27 @@ router.post("/update/multiplayer/xp", async (req, res) => {
     const response = await addMultiplayerXp(scores)
     return res.status(200).send(response)
   } catch (error) {
+    console.error(error)
+    return res.status(error.statusCode || 400).send(error.message)
+  }
+})
+
+router.get("/get/ranks", async (req, res) => {
+  try {
+    const { internaluserId } = req.body
+    if (!internaluserId) {
+      throw new Error("Invalid input")
+    }
+    let response = await Config.findOne({}, { titles: 1 }).lean()
+    response = response.titles.map((title) => {
+      return {
+        title: title.title,
+        xp: title.score,
+      }
+    })
+    return res.status(200).send(response.reverse())
+  } catch (error) {
+    console.error(error)
     return res.status(error.statusCode || 400).send(error.message)
   }
 })
