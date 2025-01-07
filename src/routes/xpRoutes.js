@@ -1,5 +1,5 @@
 const express = require("express")
-const { redeemGem, addXp, addMultiplayerXp } = require("../utils/helper")
+const { redeemGem, addXp, addMultiplayerXp, updateWatchList, getWatchList } = require("../utils/helper")
 const mongodb = require("mongodb")
 const Config = require("../models/Config")
 const router = express.Router()
@@ -61,6 +61,31 @@ router.get("/get/ranks", async (req, res) => {
       }
     })
     return res.status(200).send(response.reverse())
+  } catch (error) {
+    console.error(error)
+    return res.status(error.statusCode || 400).send(error.message)
+  }
+})
+
+router.post("/update/watchlist", async (req, res) => {
+  try {
+    const { id, hasWatched, internaluserId } = req.body
+    if (!id || hasWatched == undefined) {
+      throw new Error("Invalid input")
+    }
+    const response = await updateWatchList(id, hasWatched, internaluserId)
+    return res.status(200).send(response)
+  } catch (error) {
+    console.error(error)
+    return res.status(error.statusCode || 400).send(error.message)
+  }
+})
+
+router.get("/get/watchlist", async (req, res) => {
+  try {
+    const { internaluserId } = req.body
+    const response = await getWatchList(internaluserId)
+    return res.status(200).send(response)
   } catch (error) {
     console.error(error)
     return res.status(error.statusCode || 400).send(error.message)

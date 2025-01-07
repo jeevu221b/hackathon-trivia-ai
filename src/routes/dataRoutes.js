@@ -53,7 +53,7 @@ router.get("/get/leaderboard", async (req, res) => {
 
 router.get("/get/profile", async (req, res) => {
   try {
-    const response = await getUserProfile(req.body.internaluserId)
+  const response = await getUserProfile(req.body.internaluserId)
     return res.status(200).send(response)
   } catch (error) {
     return res.status(error.statusCode || 400).send(error.message)

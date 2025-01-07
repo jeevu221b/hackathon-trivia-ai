@@ -8,6 +8,7 @@ const Score = require("../models/Score")
 const { ObjectId } = require("mongodb")
 const { scoreToStarsConverter, getSubcategoryScore, sortCategory } = require("../utils/helper")
 const Difficulty = require("../models/Difficulty")
+const User = require("../models/User")
 
 async function loadInitialData(userId, multiplayer, firstLogin) {
   const bigData = { categories: [], subcategories: [], levels: [], questions: [] }
@@ -33,7 +34,9 @@ async function loadInitialData(userId, multiplayer, firstLogin) {
       shelf: category.shelf ? category.shelf : 2,
       type: category.type,
       createdAt: category.updatedAt,
-      metaData: category.metaData ? { ...category.metaData, isWatched: false, useCount: 0 } : { showInfo: false, isWatched: false, useCount: 0 },
+      metaData: category.metaData
+        ? { ...category.metaData, isWatched: await hasWatched(category._id, userId), userCount: category.metaData.userCount || 0 }
+        : { showInfo: false, isWatched: false, userCount: 0 },
     })
   }
 
@@ -46,7 +49,9 @@ async function loadInitialData(userId, multiplayer, firstLogin) {
       facts: subcategory.facts,
       score: await getSubcategoryScore(subcategory._id, userId),
       new: subcategory.updatedAt > new Date(new Date().setDate(new Date().getDate() - 7)),
-      metaData: subcategory.metaData ? { ...subcategory.metaData, isWatched: false, useCount: 0 } : { showInfo: false, isWatched: false, useCount: 0 },
+      metaData: subcategory.metaData
+        ? { ...subcategory.metaData, isWatched: await hasWatched(subcategory._id, userId), userCount: subcategory.metaData.userCount || 0 }
+        : { showInfo: false, isWatched: false, userCount: 0 },
     })
   }
 
@@ -135,4 +140,29 @@ async function loadInitialData(userId, multiplayer, firstLogin) {
   return bigData
 }
 
-module.exports = { loadInitialData }
+async function hasWatched(id, userId) {
+  try {
+    // Fetch user data with only watchedList field
+    const user = await User.findOne({ _id: userId }, { watchedList: 1 }).lean()
+
+    // Check if user exists
+    if (!user) {
+      console.log("User not found")
+      return false
+    }
+
+    // Make sure id and watchedList are both in the same type for comparison
+    // Assuming id is a string, and watchedList contains strings
+    const watchedList = user.watchedList.map(String) // Convert all items to strings
+
+    // Check if the id is in the watched list
+    const watched = watchedList.includes(String(id))
+
+    return watched
+  } catch (error) {
+    console.error("Error in hasWatched function:", error)
+    return false
+  }
+}
+
+module.exports = { loadInitialData, hasWatched }

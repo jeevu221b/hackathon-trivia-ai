@@ -23,6 +23,14 @@ const QuestionSchema = new mongoose.Schema(
       min: 0,
       max: 3,
     },
+    image: {
+      type: String,
+    },
+    type: {
+      type: String,
+      required: true,
+      enum: ["image", "audio", "video"],
+    },
   },
   { timestamps: true }
 )

@@ -352,7 +352,9 @@ async function getUserProfile(userId) {
     }
   }
 
-  const { rank } = await getLeaderBoardRank(userId)
+  const config = await getTitle(userInfo?.title)
+  const leaderboardRankResponse = await getLeaderBoardRank(userId)
+  const rank = leaderboardRankResponse?.rank ?? 0
   userProfile.push({
     userId: userId,
     email: userInfo.email,
@@ -362,10 +364,28 @@ async function getUserProfile(userId) {
     rank,
     xp: userInfo.xp,
     gems: userInfo.gems,
-    title: await getTitle(userInfo?.title || 0),
+    // title: config?.title || 0,
+    title: config?.title ? config.title.concat(" ", getRankTier(totalScore, config.xp)) : 0,
+
     // titleIndex: userInfo.title,
   })
   return userProfile[0]
+}
+
+function getRankTier(userScore, rankScore) {
+  const tier1Threshold = rankScore / 3
+  const tier2Threshold = 2 * (rankScore / 3)
+
+  // Determine the tier based on userScore and thresholds
+  if (userScore <= tier1Threshold) {
+    return "I"
+  } else if (userScore <= tier2Threshold) {
+    return "II"
+  } else if (userScore <= rankScore) {
+    return "III"
+  } else {
+    return "" // This handles the case where userScore exceeds rankScore
+  }
 }
 
 async function getLeaderBoardRank(userId) {
@@ -875,7 +895,7 @@ async function getRecentlyPlayedCategory(userId) {
             shelf: category.shelf ? category.shelf : 2,
             type: category.type,
             createdAt: category.updatedAt,
-            metaData: { showInfo: false, isWatched: false, useCount: 0 },
+            metaData: { showInfo: false, isWatched: false, userCount: 0 },
           })
 
           addedCategoryIds.add(categoryId) // Add to Set after pushing
@@ -899,14 +919,88 @@ async function getCategoryId(subcategoryId) {
 }
 async function getTitle(index) {
   const config = await Config.find({}, { titles: 1 }).lean()
-  return config[0].titles[index].title
+  return { title: config[0].titles[index].title, xp: config[0].titles[index].score }
 }
 
 function getUnlockedLevel(level, id, subacategory) {
   return { level, id, isUnlocked: true, isCompleted: false, subCategory: subacategory, score: 0, star: 0 }
 }
+async function updateWatchList(id, hasWatched, userId) {
+  try {
+    // Find the user by ID
+    const user = await User.findOne({ _id: userId })
+    if (!user) {
+      throw new Error("User not found")
+    }
+
+    // Initialize the watchlist and watchedList if they don't exist
+    if (!user.watchlist) {
+      user.watchlist = []
+    }
+    if (!user.watchedList) {
+      user.watchedList = []
+    }
+
+    // Check if the ID corresponds to a Category
+    let item = await Category.findOne({ _id: id })
+    if (!item) {
+      // Check if the ID corresponds to a Subcategory
+      item = await Subcategory.findOne({ _id: id })
+    }
+
+    if (item) {
+      if (!item.metaData.userCount) {
+        item.metaData.userCount = 0
+      }
+      if (hasWatched) {
+        // Check if the ID is already in the watchedList
+        if (!user.watchedList.includes(id)) {
+          // Add the ID to watchedList
+          user.watchedList.push(id)
+          item.metaData.userCount += 1
+          // item.metaData.userCount = (item.metaData.userCount || 0) + 1 // Ensure userCount is updated
+        }
+      } else {
+        // Check if the ID is already in the watchlist
+        if (!user.watchlist.includes(id)) {
+          // Add the ID to watchlist
+          user.watchlist.push(id)
+        }
+      }
+
+      // Save the user document
+      await user.save()
+      await item.save()
+      return user
+    } else {
+      throw new Error("Category or Subcategory not found")
+    }
+  } catch (err) {
+    console.error(err) // Use console.error for logging errors
+    throw err // Re-throw the error after logging
+  }
+}
+
+async function getWatchList(userId) {
+  try {
+    // Fetch user data with only watchedList field
+    const user = await User.findOne({ _id: userId }, { watchedList: 1, watchlist: 1 }).lean()
+
+    // Check if user exists
+    if (!user) {
+      console.log("User not found")
+      throw new Error("User not found")
+    }
+    return { watchlist: user.watchlist, watchedList: user.watchedList }
+  } catch (err) {
+    console.log(err)
+    throw err
+  }
+}
 
 module.exports = {
+  getWatchList,
+  updateWatchList,
   getUnlockedLevel,
   getTitle,
   getCategoryId,
@@ -947,4 +1041,5 @@ module.exports = {
   updateLeaderboard,
   updateScore,
   xpToGetGem,
+  getRankTier,
 }

@@ -34,6 +34,10 @@ const CategorySchema = new mongoose.Schema(
       type: String,
       default: "All",
     },
+    theme: {
+      type: String,
+      default: "",
+    },
     metaData: metaDataSchema,
   },
   { timestamps: true }
