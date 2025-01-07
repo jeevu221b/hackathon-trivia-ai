@@ -9,6 +9,21 @@ const recentlyPlayedSchema = new mongoose.Schema(
   { timestamps: true }
 )
 
+const watchListSchema = new mongoose.Schema({
+  id: {
+    type: String,
+    required: true,
+  },
+  title: {
+    type: String,
+    required: true,
+  },
+  type: {
+    type: String,
+    required: true,
+  },
+})
+
 const UserSchema = new mongoose.Schema(
   {
     email: {
@@ -43,10 +58,10 @@ const UserSchema = new mongoose.Schema(
       default: 0,
     },
     watchlist: {
-      type: Array,
+      type: [watchListSchema],
     },
     watchedList: {
-      type: Array,
+      type: [watchListSchema],
     },
   },
   { timestamps: true }

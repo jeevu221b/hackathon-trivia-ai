@@ -34,6 +34,10 @@ const metaDataSchema = new mongoose.Schema({
     type: Boolean,
     default: false,
   },
+  inWatchlist: {
+    type: Boolean,
+    default: false,
+  },
   userCount: {
     type: Number,
     default: 0,

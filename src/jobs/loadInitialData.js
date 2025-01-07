@@ -9,15 +9,17 @@ const { ObjectId } = require("mongodb")
 const { scoreToStarsConverter, getSubcategoryScore, sortCategory } = require("../utils/helper")
 const Difficulty = require("../models/Difficulty")
 const User = require("../models/User")
+const { metadataDefault } = require("./helper")
 
 async function loadInitialData(userId, multiplayer, firstLogin) {
   const bigData = { categories: [], subcategories: [], levels: [], questions: [] }
-  const [categories, levels, scores, configs, subcategories] = await Promise.all([
+  const [categories, levels, scores, configs, subcategories, user] = await Promise.all([
     Category.find({}).lean(),
     Level.find({}, { questions: 0 }).lean(),
     Score.find({}).lean(),
     Config.find({}).lean(),
     SubCategory.find({}).lean(),
+    User.findOne({ _id: userId }, { watchedList: 1, watchlist: 1 }).lean(),
   ])
   let totalScore = 0
 
@@ -35,8 +37,8 @@ async function loadInitialData(userId, multiplayer, firstLogin) {
       type: category.type,
       createdAt: category.updatedAt,
       metaData: category.metaData
-        ? { ...category.metaData, isWatched: await hasWatched(category._id, userId), userCount: category.metaData.userCount || 0 }
-        : { showInfo: false, isWatched: false, userCount: 0 },
+        ? { ...category.metaData, isWatched: hasWatched(user, category._id, true), inWatchlist: hasWatched(user, category._id, false), userCount: category.metaData.userCount || 0 }
+        : metadataDefault,
     })
   }
 
@@ -50,8 +52,13 @@ async function loadInitialData(userId, multiplayer, firstLogin) {
       score: await getSubcategoryScore(subcategory._id, userId),
       new: subcategory.updatedAt > new Date(new Date().setDate(new Date().getDate() - 7)),
       metaData: subcategory.metaData
-        ? { ...subcategory.metaData, isWatched: await hasWatched(subcategory._id, userId), userCount: subcategory.metaData.userCount || 0 }
-        : { showInfo: false, isWatched: false, userCount: 0 },
+        ? {
+            ...subcategory.metaData,
+            isWatched: hasWatched(user, subcategory._id, true),
+            inWatchlist: hasWatched(user, subcategory._id, false),
+            userCount: subcategory.metaData.userCount || 0,
+          }
+        : metadataDefault,
     })
   }
 
@@ -140,25 +147,12 @@ async function loadInitialData(userId, multiplayer, firstLogin) {
   return bigData
 }
 
-async function hasWatched(id, userId) {
+function hasWatched(user, id, isWatchedList) {
   try {
     // Fetch user data with only watchedList field
-    const user = await User.findOne({ _id: userId }, { watchedList: 1 }).lean()
-
-    // Check if user exists
-    if (!user) {
-      console.log("User not found")
-      return false
-    }
-
-    // Make sure id and watchedList are both in the same type for comparison
-    // Assuming id is a string, and watchedList contains strings
-    const watchedList = user.watchedList.map(String) // Convert all items to strings
-
-    // Check if the id is in the watched list
-    const watched = watchedList.includes(String(id))
-
-    return watched
+    const list = user[isWatchedList ? "watchedList" : "watchlist"]
+    // Check if the ID exists in the list
+    return list.some((item) => item.id.toString() === id.toString())
   } catch (error) {
     console.error("Error in hasWatched function:", error)
     return false

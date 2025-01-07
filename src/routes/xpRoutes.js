@@ -69,11 +69,11 @@ router.get("/get/ranks", async (req, res) => {
 
 router.post("/update/watchlist", async (req, res) => {
   try {
-    const { id, hasWatched, internaluserId } = req.body
-    if (!id || hasWatched == undefined) {
+    const { id, hasWatched, internaluserId, type } = req.body
+    if (!id || hasWatched == undefined || !type) {
       throw new Error("Invalid input")
     }
-    const response = await updateWatchList(id, hasWatched, internaluserId)
+    const response = await updateWatchList(id, type, hasWatched, internaluserId)
     return res.status(200).send(response)
   } catch (error) {
     console.error(error)

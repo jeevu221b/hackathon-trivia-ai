@@ -2,6 +2,7 @@ const mongoose = require("mongoose")
 // eslint-disable-next-line no-unused-vars
 const mongodb = require("mongodb")
 const Config = require("../models/Config")
+const Category = require("../models/Category")
 const Subcategory = require("../models/Subcategory")
 const Difficulty = require("../models/Difficulty")
 const Score = require("../models/Score")
@@ -16,7 +17,7 @@ const jwt = require("jsonwebtoken")
 const User = require("../models/User")
 const WeeklyLeaderboard = require("../models/WeeklyLeaderboard")
 const WeeklyLeaderboardWinners = require("../models/WeeklyLeaderboardWinners")
-const Category = require("../models/Category")
+const { metadataDefault } = require("../jobs/helper")
 
 env.config()
 
@@ -895,7 +896,7 @@ async function getRecentlyPlayedCategory(userId) {
             shelf: category.shelf ? category.shelf : 2,
             type: category.type,
             createdAt: category.updatedAt,
-            metaData: { showInfo: false, isWatched: false, userCount: 0 },
+            metaData: metadataDefault,
           })
 
           addedCategoryIds.add(categoryId) // Add to Set after pushing
@@ -925,10 +926,10 @@ async function getTitle(index) {
 function getUnlockedLevel(level, id, subacategory) {
   return { level, id, isUnlocked: true, isCompleted: false, subCategory: subacategory, score: 0, star: 0 }
 }
-async function updateWatchList(id, hasWatched, userId) {
+async function updateWatchList(id, type, hasWatched, userId) {
   try {
     // Find the user by ID
-    const user = await User.findOne({ _id: userId })
+    const user = await User.findById(userId)
     if (!user) {
       throw new Error("User not found")
     }
@@ -941,37 +942,58 @@ async function updateWatchList(id, hasWatched, userId) {
       user.watchedList = []
     }
 
-    // Check if the ID corresponds to a Category
-    let item = await Category.findOne({ _id: id })
-    if (!item) {
-      // Check if the ID corresponds to a Subcategory
-      item = await Subcategory.findOne({ _id: id })
-    }
+    // Initialize the item variable and its type
+    let item
+
+    // Check if the ID corresponds to a Category or Subcategory
+    item = type.toLowerCase() === "category" ? await Category.findById(id) : await Subcategory.findById(id)
 
     if (item) {
-      if (!item.metaData.userCount) {
-        item.metaData.userCount = 0
+      //Initialize metaData if it doesn't exist
+      if (!item.metaData) {
+        item.metaData = { userCount: 0 }
       }
+
+      // Extract the title from the item
+      const title = item.name // Assuming 'name' is a field in Category or Subcategory
+
+      if (!title) {
+        throw new Error("Item does not have a valid title")
+      }
+
+      // Update the user's watchlist or watchedList
       if (hasWatched) {
         // Check if the ID is already in the watchedList
-        if (!user.watchedList.includes(id)) {
+        const watchedItem = user.watchedList.find((item) => item.id === id)
+        if (!watchedItem) {
           // Add the ID to watchedList
-          user.watchedList.push(id)
+          user.watchedList.push({
+            id: id,
+            title: title,
+            type: type,
+          })
+          // Increment userCount
           item.metaData.userCount += 1
-          // item.metaData.userCount = (item.metaData.userCount || 0) + 1 // Ensure userCount is updated
         }
       } else {
         // Check if the ID is already in the watchlist
-        if (!user.watchlist.includes(id)) {
+        const watchlistItem = user.watchlist.find((item) => item.id === id)
+        if (!watchlistItem) {
           // Add the ID to watchlist
-          user.watchlist.push(id)
+          user.watchlist.push({
+            id: id,
+            title: title,
+            type: type,
+          })
         }
+        // Increment userCount
+        item.metaData.userCount += 1
       }
 
       // Save the user document
       await user.save()
       await item.save()
-      return user
+      return { watchlist: user.watchlist, watchedlist: user.watchedList, type: item }
     } else {
       throw new Error("Category or Subcategory not found")
     }
