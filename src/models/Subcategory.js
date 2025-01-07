@@ -1,36 +1,5 @@
 const mongoose = require("mongoose")
-
-const metaDataSchema = new mongoose.Schema({
-  type: {
-    type: String,
-    trim: true,
-    default: "",
-  },
-  imageSrc: {
-    type: String,
-    trim: true,
-    default: "",
-  },
-  wikiTitle: {
-    type: String,
-    trim: true,
-    default: "",
-  },
-  platform: {
-    type: String,
-    trim: true,
-    default: "",
-  },
-  platformLink: {
-    type: String,
-    trim: true,
-    default: "",
-  },
-  showInfo: {
-    type: Boolean,
-    default: false,
-  },
-})
+const metaDataSchema = require("./MetadataSchema")
 
 const SubcategorySchema = new mongoose.Schema(
   {

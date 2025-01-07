@@ -351,6 +351,7 @@ async function getUserProfile(userId) {
       }
     }
   }
+
   const { rank } = await getLeaderBoardRank(userId)
   userProfile.push({
     userId: userId,
@@ -362,6 +363,7 @@ async function getUserProfile(userId) {
     xp: userInfo.xp,
     gems: userInfo.gems,
     title: await getTitle(userInfo?.title || 0),
+    // titleIndex: userInfo.title,
   })
   return userProfile[0]
 }
@@ -774,6 +776,10 @@ function updateTitle(score, data, titleIndex) {
       return true
     }
   })
+  if (score > data[data.length - 1].score) {
+    closestTitle.index = data.length - 1
+  }
+
   if (closestTitle.index === null || closestTitle.index == titleIndex) {
     return null
   }
@@ -869,7 +875,7 @@ async function getRecentlyPlayedCategory(userId) {
             shelf: category.shelf ? category.shelf : 2,
             type: category.type,
             createdAt: category.updatedAt,
-            metaData: { showInfo: false },
+            metaData: { showInfo: false, isWatched: false, useCount: 0 },
           })
 
           addedCategoryIds.add(categoryId) // Add to Set after pushing

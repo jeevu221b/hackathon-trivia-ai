@@ -33,7 +33,7 @@ async function loadInitialData(userId, multiplayer, firstLogin) {
       shelf: category.shelf ? category.shelf : 2,
       type: category.type,
       createdAt: category.updatedAt,
-      metaData: category.metaData ? category.metaData : { showInfo: false },
+      metaData: category.metaData ? { ...category.metaData, isWatched: false, useCount: 0 } : { showInfo: false, isWatched: false, useCount: 0 },
     })
   }
 
@@ -46,7 +46,7 @@ async function loadInitialData(userId, multiplayer, firstLogin) {
       facts: subcategory.facts,
       score: await getSubcategoryScore(subcategory._id, userId),
       new: subcategory.updatedAt > new Date(new Date().setDate(new Date().getDate() - 7)),
-      metaData: subcategory.metaData ? subcategory.metaData : { showInfo: false },
+      metaData: subcategory.metaData ? { ...subcategory.metaData, isWatched: false, useCount: 0 } : { showInfo: false, isWatched: false, useCount: 0 },
     })
   }
 
