@@ -8,7 +8,8 @@ const sessionRoutes = require("./sessionRoutes")
 const dataRoutes = require("./dataRoutes")
 const loginRoute = require("./loginRoute")
 const xpRoutes = require("./xpRoutes")
+const questsRoutes =  require("./questsRoute")
 
-router.use(categoryRoutes, subcategoryRoutes, questionRoutes, sessionRoutes, dataRoutes, loginRoute, xpRoutes)
+router.use(categoryRoutes, subcategoryRoutes, questionRoutes, sessionRoutes, dataRoutes, loginRoute, xpRoutes, questsRoutes)
 
 exports = module.exports = router

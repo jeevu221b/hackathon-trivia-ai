@@ -10,18 +10,61 @@ const { scoreToStarsConverter, getSubcategoryScore, sortCategory } = require("..
 const Difficulty = require("../models/Difficulty")
 const User = require("../models/User")
 const { metadataDefault } = require("./helper")
+const Quests = require("../models/Quests")
 
 async function loadInitialData(userId, multiplayer, firstLogin) {
-  const bigData = { categories: [], subcategories: [], levels: [], questions: [] }
-  const [categories, levels, scores, configs, subcategories, user] = await Promise.all([
+  const bigData = { categories: [], subcategories: [], levels: [], questions: [], quest: [] }
+  const [categories, levels, scores, configs, subcategories, user, quests] = await Promise.all([
     Category.find({}).lean(),
     Level.find({}, { questions: 0 }).lean(),
     Score.find({}).lean(),
     Config.find({}).lean(),
     SubCategory.find({}).lean(),
-    User.findOne({ _id: userId }, { watchedList: 1, watchlist: 1 }).lean(),
+    User.findOne({ _id: userId }, { watchedList: 1, watchlist: 1, questProgress: 1 }),
+    Quests.find({}).lean(),
   ])
   let totalScore = 0
+
+  // If first login
+  // Check if daily login quest exists or not
+  // If it doesn't exists then
+  //   _id:.completedCount += 1
+  //  if (loginQuest.completedCount >= loginQuest.taskRequirement) {
+  //    loginQuest.isCompleted = true
+  //    user.xp += loginQuest.xpReward
+  //    user.gems += loginQuest.gemReward
+  //  }
+  // If it exists then check it is completed or not
+
+  // ---------- Actual Implementation -----------------------
+  // Assume 'user' is already defined and fetched from the database
+  const now = new Date()
+  const twentyFourHours = 24 * 60 * 60 * 1000 // 24 hours in milliseconds
+
+  if (!user.lastDailyLogin || now - new Date(user.lastDailyLogin) > twentyFourHours) {
+    console.log("More than 24 hrs")
+    user.lastDailyLogin = now
+
+    // Initialize questProgress if it doesn't exist
+    if (!user.questProgress) {
+      user.questProgress = []
+    }
+
+    // Iterate over quests and push completed ones
+    for (let quest of quests) {
+      if (quest.taskType === "login") {
+        user.questProgress.push({
+          questId: quest._id,
+          completedCount: 1,
+          isCompleted: true,
+        })
+        bigData["quest"].push({ title: quest.title, type: quest.taskType, progress: user.questProgress.completedCount, total: quest.taskRequirement, xp: quest.xpReward })
+      }
+    }
+
+    // Save the updated user document
+    await user.save()
+  }
 
   const sortedCategories = sortCategory(categories)
   for (let category of sortedCategories) {

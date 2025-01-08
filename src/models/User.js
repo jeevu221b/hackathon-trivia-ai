@@ -24,6 +24,22 @@ const watchListSchema = new mongoose.Schema({
   },
 })
 
+const questProgressSchema = new mongoose.Schema({
+  questId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "DailyQuest",
+    required: true,
+  },
+  completedCount: {
+    type: Number,
+    default: 0, // How many times they've completed the task (e.g., played a game)
+  },
+  isCompleted: {
+    type: Boolean,
+    default: false, // Whether the task is completed for the day
+  },
+})
+
 const UserSchema = new mongoose.Schema(
   {
     email: {
@@ -62,6 +78,16 @@ const UserSchema = new mongoose.Schema(
     },
     watchedList: {
       type: [watchListSchema],
+    },
+    // lastDailyQuestCompletion: {
+    //   type: Date, // To ensure they can only complete daily quests once per day
+    // },
+    lastDailyLogin:{
+      type: Date
+
+    },
+    questProgress: {
+      type: [questProgressSchema], // Track the progress of daily quests
     },
   },
   { timestamps: true }
