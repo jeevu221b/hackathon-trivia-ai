@@ -32,13 +32,14 @@ async function loadInitialData(userId, multiplayer, firstLogin) {
       isBanner: category.isBanner,
       displayName: category.displayName,
       subtext: category.subtext,
-      new: category.updatedAt > new Date(new Date().setDate(new Date().getDate() - 10)),
+      new: category.createdAt > new Date(new Date().setDate(new Date().getDate() - 10)),
       shelf: category.shelf ? category.shelf : 2,
       type: category.type,
-      createdAt: category.updatedAt,
+      createdAt: category.createdAt,
+      theme: category.theme,
       metaData: category.metaData
         ? { ...category.metaData, isWatched: hasWatched(user, category._id, true), inWatchlist: hasWatched(user, category._id, false), userCount: category.metaData.userCount || 0 }
-        : metadataDefault,
+        : { ...metadataDefault },
     })
   }
 

@@ -1,5 +1,43 @@
 const mongoose = require("mongoose")
 
+//dummy imageConfigSchema
+// const imageConfig = {
+//   girdWidth: 10,
+//   girdHeight: 10,
+//   imageSrc: "https://d31xsmoz1lk3y3.cloudfront.net/games/images/map_img_831761_1562185949.jpg",
+//   imageWidth: 292,
+//   imageHeight: 146,
+//   cornerRadius: 100,
+// }
+
+const imageConfigSchema = new mongoose.Schema(
+  {
+    gridWidth: {
+      type: Number,
+      required: true,
+    },
+    gridHeight: {
+      type: Number,
+      required: true,
+    },
+    imageSrc: {
+      type: String,
+      required: true,
+    },
+    imageWidth: {
+      type: Number,
+      required: true,
+    },
+    imageHeight: {
+      type: Number,
+    },
+    cornerRadius: {
+      type: Number,
+    },
+  },
+  { timestamps: true }
+)
+
 const QuestionSchema = new mongoose.Schema(
   {
     question: {
@@ -31,6 +69,17 @@ const QuestionSchema = new mongoose.Schema(
       required: true,
       enum: ["image", "audio", "video"],
     },
+    gridRow: {
+      type: Number,
+    },
+    gridColumn: {
+      type: Number,
+    },
+    imageType: {
+      type: String,
+      enum: ["logo", "tall", "wide", "grid"],
+      default: "wide",
+    },
   },
   { timestamps: true }
 )
@@ -41,8 +90,8 @@ const LevelSchema = new mongoose.Schema(
       type: [QuestionSchema],
       required: true,
     },
-    image: {
-      type: String,
+    imageConfig: {
+      type: imageConfigSchema,
     },
     subcategory: {
       type: mongoose.Schema.Types.ObjectId,

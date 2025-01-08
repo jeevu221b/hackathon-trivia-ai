@@ -13,7 +13,7 @@ router.post("/create/question", async (req, res) => {
     if (!mongodb.ObjectId.isValid(body.subcategoryId) || typeof body.level !== "number" || !Array.isArray(body.questions)) {
       throw new Error("Invalid paramas")
     }
-    const response = await createQuestions(body.subcategoryId, body.level, body.questions)
+    const response = await createQuestions(body.subcategoryId, body.level, body.questions, body.imageConfig)
     return res.status(200).send(response)
   } catch (error) {
     console.error(error)

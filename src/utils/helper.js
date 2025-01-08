@@ -89,7 +89,7 @@ async function getSubcategoryScore(subcategoryId, userId) {
 async function getLevelQuestions(levelId) {
   const questions = await Level.findOne({ _id: levelId }).lean()
   if (questions) {
-    return questions.questions
+    return { questions: questions.questions, imageConfig: questions.imageConfig }
   }
   throw new Error("Level not found :(")
 }
@@ -235,7 +235,7 @@ function shuffleArray(array, levelId, multiplayer) {
 
   // Shuffle options within each question
   if (level.level != 3) {
-    array.forEach((question) => {
+    array.questions.forEach((question) => {
       // Remember the correct answer index
       let correctAnswerIndex = question.answer
       // Shuffle options while maintaining the correct answer at its original index
@@ -261,17 +261,20 @@ function shuffleArray(array, levelId, multiplayer) {
       ;[array[i], array[j]] = [array[j], array[i]]
     }
   }
-  return array
+  return {
+    questions: array.questions,
+    imageConfig: array.imageConfig,
+  }
 }
 
-async function createQuestions(subcategoryId, level, questions) {
+async function createQuestions(subcategoryId, level, questions, imageConfig) {
   const subcategory = await Subcategory.findOne({ _id: subcategoryId })
   if (!subcategory) {
     throw new Error("Invalid subcategory")
   }
   const updatedLevelDocument = await Level.findOneAndUpdate(
     { subcategory: subcategoryId, level: level },
-    { subcategory: subcategoryId, questions: questions, level: level },
+    { subcategory: subcategoryId, questions: questions, imageConfig: imageConfig, level: level },
     { new: true, upsert: true }
   )
   return updatedLevelDocument
@@ -302,7 +305,6 @@ function decodeToken(req, res, next) {
     const data = jwt.verify(token, process.env.SECRET_KEY)
     req.body.internaluserId = data.userId
     next()
-    // eslint-disable-next-line no-unused-vars
   } catch (error) {
     if (error.name === "TokenExpiredError") {
       req.body.hasExpired = true
@@ -842,14 +844,15 @@ async function addRecentlyPlayedCategory(userId, categoryId) {
       user.recentlyPlayed[0].categories = []
     }
 
-    if (user.recentlyPlayed[0].categories.length <= 5) {
-      user.recentlyPlayed[0].categories.push(categoryId)
-    } else {
-      // Remove the first element of the categories array
+    // Remove the category if it already exists to avoid duplicates
+    user.recentlyPlayed[0].categories = user.recentlyPlayed[0].categories.filter((id) => id.toString() !== categoryId.toString())
+
+    // Add the new category to the end
+    if (user.recentlyPlayed[0].categories.length >= 5) {
+      // Remove the first element if the length exceeds 5
       user.recentlyPlayed[0].categories.shift()
-      // Push a new category
-      user.recentlyPlayed[0].categories.push(categoryId)
     }
+    user.recentlyPlayed[0].categories.push(categoryId)
 
     // Save the updated user document
     await user.save()
@@ -975,6 +978,8 @@ async function updateWatchList(id, type, hasWatched, userId) {
           // Increment userCount
           item.metaData.userCount += 1
         }
+        // Remove the ID from watchlist if it exists
+        user.watchlist = user.watchlist.filter((item) => item.id !== id)
       } else {
         // Check if the ID is already in the watchlist
         const watchlistItem = user.watchlist.find((item) => item.id === id)
