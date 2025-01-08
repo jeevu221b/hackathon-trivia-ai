@@ -1,6 +1,8 @@
 const Session = require("../models/Session")
 const Level = require("../models/Level")
 const Score = require("../models/Score")
+const User = require("../models/User")
+const Quests = require("../models/Quests")
 const {
   scoreToStarsConverter,
   getLevelInfo,
@@ -148,6 +150,49 @@ async function updateSession(sessionId, score, isCompleted, streak) {
   updatedSession.gems = userInfo.gems
   updatedSession.totalXp = userInfo.totalXp
   updatedSession.totalGems = userInfo.totalGems
+
+  // Play 2 Games Quest logic
+  const [user, quests] = await Promise.all([User.findOne({ _id: updatedSession.userId }, { questProgress: 1, lastDailyLogin: 1 }), Quests.find({}).lean()])
+
+  // Initialize questProgress if it doesn't exist
+  if (!user.questProgress) {
+    user.questProgress = []
+  }
+
+  // Find the daily login quest
+  const dailyLoginQuestId = quests.find((q) => q.taskType === "playGames")._id
+  let dailyLoginQuest = user.questProgress.find((quest) => quest.questId.toString() === dailyLoginQuestId.toString())
+
+  if (!dailyLoginQuest) {
+    // If it doesn't exist, create a new entry
+    dailyLoginQuest = {
+      questId: dailyLoginQuestId,
+      completedCount: 1,
+      isCompleted: false,
+    }
+    user.questProgress.push(dailyLoginQuest)
+    updatedSession.quest.push({
+      title: quests.find((q) => q.taskType === "login").title,
+      type: "login",
+      progress: dailyLoginQuest.completedCount,
+      total: quests.find((q) => q.taskType === "login").taskRequirement,
+      xp: quests.find((q) => q.taskType === "login").xpReward,
+    })
+    await user.save()
+  } else if (!dailyLoginQuest.isCompleted) {
+    // If it exists, update the completedCount
+    dailyLoginQuest.completedCount += 1 // Increment completed count
+    dailyLoginQuest.isCompleted = dailyLoginQuest.completedCount >= dailyLoginQuest.taskRequirement // Ensure it's marked as completed
+    updatedSession.quest.push({
+      title: quests.find((q) => q.taskType === "login").title,
+      type: "login",
+      progress: dailyLoginQuest.completedCount,
+      total: quests.find((q) => q.taskType === "login").taskRequirement,
+      xp: quests.find((q) => q.taskType === "login").xpReward,
+    })
+    await user.save()
+  }
+  // Save the updated user document
   return updatedSession
 }
 

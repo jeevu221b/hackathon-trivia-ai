@@ -20,7 +20,7 @@ async function loadInitialData(userId, multiplayer, firstLogin) {
     Score.find({}).lean(),
     Config.find({}).lean(),
     SubCategory.find({}).lean(),
-    User.findOne({ _id: userId }, { watchedList: 1, watchlist: 1, questProgress: 1 }),
+    User.findOne({ _id: userId }, { watchedList: 1, watchlist: 1, questProgress: 1, lastDailyLogin: 1 }),
     Quests.find({}).lean(),
   ])
   let totalScore = 0
@@ -50,20 +50,37 @@ async function loadInitialData(userId, multiplayer, firstLogin) {
       user.questProgress = []
     }
 
-    // Iterate over quests and push completed ones
-    for (let quest of quests) {
-      if (quest.taskType === "login") {
-        user.questProgress.push({
-          questId: quest._id,
-          completedCount: 1,
-          isCompleted: true,
-        })
-        bigData["quest"].push({ title: quest.title, type: quest.taskType, progress: user.questProgress.completedCount, total: quest.taskRequirement, xp: quest.xpReward })
+    // Find the daily login quest
+    const dailyLoginQuestId = quests.find((q) => q.taskType === "login")._id
+    let dailyLoginQuest = user.questProgress.find((quest) => quest.questId.toString() === dailyLoginQuestId.toString())
+
+    if (!dailyLoginQuest) {
+      // If it doesn't exist, create a new entry
+      dailyLoginQuest = {
+        questId: dailyLoginQuestId,
+        completedCount: 1,
+        isCompleted: true,
       }
+      user.questProgress.push(dailyLoginQuest)
+    } else {
+      // If it exists, update the completedCount
+      dailyLoginQuest.completedCount += 1 // Increment completed count
+      dailyLoginQuest.isCompleted = true // Ensure it's marked as completed
     }
+
+    // Update bigData for the quest
+    bigData["quest"].push({
+      title: quests.find((q) => q.taskType === "login").title,
+      type: "login",
+      progress: dailyLoginQuest.completedCount,
+      total: quests.find((q) => q.taskType === "login").taskRequirement,
+      xp: quests.find((q) => q.taskType === "login").xpReward,
+    })
 
     // Save the updated user document
     await user.save()
+  } else {
+    console.log("Not more than 24 hours")
   }
 
   const sortedCategories = sortCategory(categories)
