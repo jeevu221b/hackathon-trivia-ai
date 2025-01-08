@@ -15,24 +15,30 @@ const imageConfigSchema = new mongoose.Schema(
     gridWidth: {
       type: Number,
       required: true,
+      default: 3,
     },
     gridHeight: {
       type: Number,
       required: true,
+      default: 4,
     },
     imageSrc: {
       type: String,
       required: true,
+      default: "",
     },
     imageWidth: {
       type: Number,
       required: true,
+      default: 292,
     },
     imageHeight: {
       type: Number,
+      default: 146,
     },
     cornerRadius: {
       type: Number,
+      default: 20,
     },
   },
   { timestamps: true }

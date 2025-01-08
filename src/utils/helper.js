@@ -89,7 +89,7 @@ async function getSubcategoryScore(subcategoryId, userId) {
 async function getLevelQuestions(levelId) {
   const questions = await Level.findOne({ _id: levelId }).lean()
   if (questions) {
-    return { questions: questions.questions, imageConfig: questions.imageConfig }
+    return { questions: questions.questions.map((question) => ({ ...question, imageConfig: questions.imageConfig })) }
   }
   throw new Error("Level not found :(")
 }
@@ -263,7 +263,6 @@ function shuffleArray(array, levelId, multiplayer) {
   }
   return {
     questions: array.questions,
-    imageConfig: array.imageConfig,
   }
 }
 
@@ -597,7 +596,7 @@ async function resetWeeklyLeaderBoard() {
 
 async function getRandomQuestions(categoryId) {
   try {
-    // Aggregate pipeline to find Levels matching the categoryId and sample 10 random questions
+    // Aggregate pipeline to find Levels matching the categoryId and sample 20 random questions
     const randomQuestions = await Level.aggregate([
       {
         $lookup: {
@@ -621,11 +620,29 @@ async function getRandomQuestions(categoryId) {
         },
       },
       { $unwind: "$questions" }, // Unwind the questions array
-      { $sample: { size: 20 } }, // Sample 10 random questions
-      { $replaceRoot: { newRoot: "$questions" } }, // Replace root with questions
+      {
+        $project: {
+          question: {
+            $mergeObjects: [
+              "$questions",
+              {
+                imageConfig: {
+                  $cond: {
+                    if: { $ifNull: ["$imageConfig", false] },
+                    then: "$imageConfig",
+                    else: "$$REMOVE",
+                  },
+                },
+              },
+            ],
+          },
+        },
+      },
+      { $sample: { size: 20 } }, // Sample 20 random questions
+      { $replaceRoot: { newRoot: "$question" } }, // Replace root with the merged question object
     ])
 
-    return randomQuestions
+    return { questions: randomQuestions }
   } catch (err) {
     console.error("Error fetching random questions:", err)
     throw err
