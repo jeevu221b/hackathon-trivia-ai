@@ -88,6 +88,11 @@ const UserSchema = new mongoose.Schema(
     questProgress: {
       type: [questProgressSchema], // Track the progress of daily quests
     },
+    spinWheelHistory: {
+      type: [String],
+      enum: ["xp", "gems", "card"],
+      default: [],
+    },
   },
   { timestamps: true }
 )
