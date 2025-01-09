@@ -85,8 +85,8 @@ async function updateQuestProgress(userId, configs) {
 
       await user.save()
     } else {
-      const date1 = moment(new Date(questInUserProgress.updatedAt))
-      const date2 = moment(now)
+      const date1 = moment(new Date(questInUserProgress.updatedAt)).startOf("day")
+      const date2 = moment(now).startOf("day")
 
       const dayDifference = date2.diff(date1, "days")
 
@@ -195,15 +195,17 @@ async function dailyLoginQuestProgress(userId, quests, configs) {
     ]
     await user.save()
   } else if (dailyLoginQuest) {
-    const date1 = moment(new Date(dailyLoginQuest.updatedAt))
-    const date2 = moment(now)
+    const date1 = moment(dailyLoginQuest.updatedAt).startOf("day")
+    const date2 = moment(now).startOf("day")
 
+    // calculate the difference in days, ignoring the time
     const dayDifference = date2.diff(date1, "days")
 
     // Reset quest progress if 24 hours have passed
-    if (dayDifference > 0) {
-      dailyLoginQuest.completedCount += 1 // Increment completed count
+    if (parseInt(dayDifference) > 0) {
+      dailyLoginQuest.completedCount = 1 // Increment completed count
       dailyLoginQuest.isCompleted = true
+      dailyLoginQuest.updatedAt = now
       const updatedXp = await updateXp(userId, loginQuest.xpReward, configs[0].gems, configs[0].titles)
       questUpdates = [
         {

@@ -953,7 +953,6 @@ async function addRecentlyPlayedCategory(userId, categoryId) {
 async function getRecentlyPlayedCategory(userId) {
   try {
     const user = await User.findOne({ _id: userId })
-    console.log("UserID", userId)
     const bigData = { categories: [] }
 
     if (user) {
@@ -988,6 +987,8 @@ async function getRecentlyPlayedCategory(userId) {
             shelf: category.shelf ? category.shelf : 2,
             type: category.type,
             createdAt: category.updatedAt,
+            theme: category.theme ? category.theme : "",
+            sort: 0,
             metaData: metadataDefault,
           })
 
