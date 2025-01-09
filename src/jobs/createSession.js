@@ -13,6 +13,7 @@ const {
   getCategoryId,
   addRecentlyPlayedCategory,
   getUnlockedLevel,
+  updateXp,
 } = require("../utils/helper")
 const Config = require("../models/Config")
 const { SESSION_ALREADY_COMPLETED, INVALID_SESSION_ID, INVALID_LEVEL, INVALID_SCORE } = require("../config/errorLang")
@@ -160,36 +161,38 @@ async function updateSession(sessionId, score, isCompleted, streak) {
   }
 
   // Find the daily login quest
-  const dailyLoginQuestId = quests.find((q) => q.taskType === "playGames")._id
-  let dailyLoginQuest = user.questProgress.find((quest) => quest.questId.toString() === dailyLoginQuestId.toString())
+  const playGameQuest = quests.find((q) => q.taskType === "playGames")
+  let questInUserProgress = user.questProgress.find((quest) => quest.questId.toString() === playGameQuest._id.toString())
 
-  if (!dailyLoginQuest) {
+  if (!questInUserProgress) {
     // If it doesn't exist, create a new entry
-    dailyLoginQuest = {
-      questId: dailyLoginQuestId,
+    questInUserProgress = {
+      questId: playGameQuest._id,
       completedCount: 1,
       isCompleted: false,
     }
-    user.questProgress.push(dailyLoginQuest)
-    updatedSession.quest.push({
-      title: quests.find((q) => q.taskType === "login").title,
-      type: "login",
-      progress: dailyLoginQuest.completedCount,
-      total: quests.find((q) => q.taskType === "login").taskRequirement,
-      xp: quests.find((q) => q.taskType === "login").xpReward,
-    })
+    user.questProgress.push(questInUserProgress)
+    updatedSession.quest = {
+      title: playGameQuest.title,
+      type: "Play 2 Games",
+      progress: questInUserProgress.completedCount,
+      total: playGameQuest.taskRequirement,
+      xp: playGameQuest.xpReward,
+    }
+    await updateXp(updatedSession.userId, playGameQuest.xpReward, configs[0].gems, configs[0].titles)
     await user.save()
-  } else if (!dailyLoginQuest.isCompleted) {
+  } else if (!questInUserProgress.isCompleted) {
     // If it exists, update the completedCount
-    dailyLoginQuest.completedCount += 1 // Increment completed count
-    dailyLoginQuest.isCompleted = dailyLoginQuest.completedCount >= dailyLoginQuest.taskRequirement // Ensure it's marked as completed
-    updatedSession.quest.push({
-      title: quests.find((q) => q.taskType === "login").title,
-      type: "login",
-      progress: dailyLoginQuest.completedCount,
-      total: quests.find((q) => q.taskType === "login").taskRequirement,
-      xp: quests.find((q) => q.taskType === "login").xpReward,
-    })
+    questInUserProgress.completedCount += 1 // Increment completed count
+    questInUserProgress.isCompleted = questInUserProgress.completedCount >= playGameQuest.taskRequirement // Ensure it's marked as completed
+    updatedSession.quest = {
+      title: playGameQuest.title,
+      type: "Play 2 Games",
+      progress: questInUserProgress.completedCount,
+      total: playGameQuest.taskRequirement,
+      xp: playGameQuest.xpReward,
+    }
+    await updateXp(updatedSession.userId, playGameQuest.xpReward, configs[0].gems, configs[0].titles)
     await user.save()
   }
   // Save the updated user document

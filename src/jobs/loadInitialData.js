@@ -6,14 +6,14 @@ const Score = require("../models/Score")
 
 // eslint-disable-next-line no-unused-vars
 const { ObjectId } = require("mongodb")
-const { scoreToStarsConverter, getSubcategoryScore, sortCategory } = require("../utils/helper")
+const { scoreToStarsConverter, getSubcategoryScore, sortCategory, updateXp } = require("../utils/helper")
 const Difficulty = require("../models/Difficulty")
 const User = require("../models/User")
 const { metadataDefault } = require("./helper")
 const Quests = require("../models/Quests")
 
 async function loadInitialData(userId, multiplayer, firstLogin) {
-  const bigData = { categories: [], subcategories: [], levels: [], questions: [], quest: [] }
+  const bigData = { categories: [], subcategories: [], levels: [], questions: [] }
   const [categories, levels, scores, configs, subcategories, user, quests] = await Promise.all([
     Category.find({}).lean(),
     Level.find({}, { questions: 0 }).lean(),
@@ -24,24 +24,10 @@ async function loadInitialData(userId, multiplayer, firstLogin) {
     Quests.find({}).lean(),
   ])
   let totalScore = 0
-
-  // If first login
-  // Check if daily login quest exists or not
-  // If it doesn't exists then
-  //   _id:.completedCount += 1
-  //  if (loginQuest.completedCount >= loginQuest.taskRequirement) {
-  //    loginQuest.isCompleted = true
-  //    user.xp += loginQuest.xpReward
-  //    user.gems += loginQuest.gemReward
-  //  }
-  // If it exists then check it is completed or not
-
-  // ---------- Actual Implementation -----------------------
-  // Assume 'user' is already defined and fetched from the database
   const now = new Date()
   const twentyFourHours = 24 * 60 * 60 * 1000 // 24 hours in milliseconds
 
-  if (!user.lastDailyLogin || now - new Date(user.lastDailyLogin) > twentyFourHours) {
+  if (!user.lastDailyLogin || now - new Date(user.lastDailyLogin) < twentyFourHours) {
     console.log("More than 24 hrs")
     user.lastDailyLogin = now
 
@@ -51,31 +37,38 @@ async function loadInitialData(userId, multiplayer, firstLogin) {
     }
 
     // Find the daily login quest
-    const dailyLoginQuestId = quests.find((q) => q.taskType === "login")._id
-    let dailyLoginQuest = user.questProgress.find((quest) => quest.questId.toString() === dailyLoginQuestId.toString())
+    const dailyLoginQuesttt = quests.find((q) => q.taskType === "login")
+    let dailyLoginQuest = user.questProgress.find((quest) => quest.questId.toString() === dailyLoginQuesttt._id.toString())
 
     if (!dailyLoginQuest) {
       // If it doesn't exist, create a new entry
       dailyLoginQuest = {
-        questId: dailyLoginQuestId,
+        questId: dailyLoginQuesttt._id,
         completedCount: 1,
         isCompleted: true,
       }
       user.questProgress.push(dailyLoginQuest)
-    } else {
+    } else if (!dailyLoginQuest.isCompleted) {
       // If it exists, update the completedCount
       dailyLoginQuest.completedCount += 1 // Increment completed count
       dailyLoginQuest.isCompleted = true // Ensure it's marked as completed
     }
 
+    const updatedXp = await updateXp(userId, dailyLoginQuesttt.xpReward, configs[0].gems, configs[0].titles)
+
     // Update bigData for the quest
-    bigData["quest"].push({
-      title: quests.find((q) => q.taskType === "login").title,
+    bigData.quest = {
+      title: dailyLoginQuesttt.title,
       type: "login",
       progress: dailyLoginQuest.completedCount,
-      total: quests.find((q) => q.taskType === "login").taskRequirement,
-      xp: quests.find((q) => q.taskType === "login").xpReward,
-    })
+      total: dailyLoginQuesttt.taskRequirement,
+      // isCompleted: dailyLoginQuest.isCompleted,
+      // requiredXp: `You need ${updatedXp.requiredXp} XP to unlock a gem :D`,
+      xp: updatedXp.xp,
+      // gemsRewarded: updatedXp.gems,
+      // totalXp: updatedXp.totalXp,
+      // totalGems: updatedXp.totalGems,
+    }
 
     // Save the updated user document
     await user.save()
