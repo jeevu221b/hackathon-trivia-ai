@@ -93,6 +93,10 @@ const UserSchema = new mongoose.Schema(
       enum: ["xp", "gems", "card"],
       default: [],
     },
+    password: {
+      type: String,
+      default: null,
+    },
   },
   { timestamps: true }
 )
