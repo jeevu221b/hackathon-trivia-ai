@@ -6,98 +6,29 @@ const Score = require("../models/Score")
 
 // eslint-disable-next-line no-unused-vars
 const { ObjectId } = require("mongodb")
-const { scoreToStarsConverter, getSubcategoryScore, sortCategory, updateXp } = require("../utils/helper")
+const { scoreToStarsConverter, getSubcategoryScore, sortCategory } = require("../utils/helper")
 const Difficulty = require("../models/Difficulty")
 const User = require("../models/User")
 const { metadataDefault } = require("./helper")
 const Quests = require("../models/Quests")
+const { dailyLoginQuestProgress } = require("./quests")
 
 async function loadInitialData(userId, multiplayer, firstLogin) {
-  const bigData = { categories: [], subcategories: [], levels: [], questions: [], quests: [] }
+  const bigData = { categories: [], subcategories: [], levels: [], questions: [], types: [] }
   const [categories, levels, scores, configs, subcategories, user, quests] = await Promise.all([
     Category.find({}).lean(),
     Level.find({}, { questions: 0 }).lean(),
     Score.find({}).lean(),
     Config.find({}).lean(),
     SubCategory.find({}).lean(),
-    User.findOne({ _id: userId }, { watchedList: 1, watchlist: 1, questProgress: 1, lastDailyLogin: 1 }),
+    User.findOne({ _id: userId }, { watchedList: 1, watchlist: 1, questProgress: 1 }),
     Quests.find({}).lean(),
   ])
   let totalScore = 0
-  const now = new Date()
-  const twentyFourHours = 24 * 60 * 60 * 1000 // 24 hours in milliseconds
-
-  if (!user.lastDailyLogin || now - new Date(user.lastDailyLogin) > twentyFourHours) {
-    console.log("More than 24 hrs")
-    user.lastDailyLogin = now
-
-    // Initialize questProgress if it doesn't exist
-    if (!user.questProgress) {
-      user.questProgress = []
-    }
-
-    // Find the daily login quest
-    const dailyLoginQuesttt = quests.find((q) => q.taskType === "login")
-    let dailyLoginQuest = user.questProgress.find((quest) => quest.questId.toString() === dailyLoginQuesttt._id.toString())
-
-    if (!dailyLoginQuest) {
-      // If it doesn't exist, create a new entry
-      dailyLoginQuest = {
-        questId: dailyLoginQuesttt._id,
-        completedCount: 1,
-        isCompleted: true,
-      }
-      user.questProgress.push(dailyLoginQuest)
-    } else if (!dailyLoginQuest.isCompleted) {
-      // If it exists, update the completedCount
-      dailyLoginQuest.completedCount += 1 // Increment completed count
-      dailyLoginQuest.isCompleted = true // Ensure it's marked as completed
-    }
-
-    const updatedXp = await updateXp(userId, dailyLoginQuesttt.xpReward, configs[0].gems, configs[0].titles)
-
-    // Update bigData for the quest
-    bigData.quests.push({
-      title: dailyLoginQuesttt.title,
-      type: "login",
-      progress: dailyLoginQuest.completedCount,
-      total: dailyLoginQuesttt.taskRequirement,
-      // isCompleted: dailyLoginQuest.isCompleted,
-      // requiredXp: `You need ${updatedXp.requiredXp} XP to unlock a gem :D`,
-      xp: updatedXp.xp,
-      toShow: true,
-      // gemsRewarded: updatedXp.gems,
-      // totalXp: updatedXp.totalXp,
-      // totalGems: updatedXp.totalGems,
-    })
-
-    // Save the updated user document
-    await user.save()
-  } else {
-    console.log("Not more than 24 hours")
-  }
-  if (bigData.quests.length === 0) {
-    const dailyLoginQuesttt = quests.find((q) => q.taskType === "login")
-    let dailyLoginQuest = user.questProgress.find((quest) => quest.questId.toString() === dailyLoginQuesttt._id.toString())
-    if (dailyLoginQuest) {
-      bigData.quests.push({
-        title: dailyLoginQuesttt.title,
-        type: "login",
-        progress: dailyLoginQuest.completedCount,
-        total: dailyLoginQuesttt.taskRequirement,
-        // isCompleted: dailyLoginQuest.isCompleted,
-        // requiredXp: `You need ${updatedXp.requiredXp} XP to unlock a gem :D`,
-        xp: 0,
-        toShow: false,
-        // gemsRewarded: updatedXp.gems,
-        // totalXp: updatedXp.totalXp,
-        // totalGems: updatedXp.totalGems,
-      })
-    }
-  }
-
+  bigData.quests = await dailyLoginQuestProgress(userId, quests, configs)
   const sortedCategories = sortCategory(categories)
-  for (let category of sortedCategories) {
+  bigData["types"] = sortedCategories.uniqueTypes
+  for (let category of sortedCategories.sortedCategories) {
     bigData["categories"].push({
       id: category._id,
       name: category.name,
@@ -110,6 +41,7 @@ async function loadInitialData(userId, multiplayer, firstLogin) {
       type: category.type,
       createdAt: category.createdAt,
       theme: category.theme,
+      sort: category.sort,
       metaData: category.metaData
         ? { ...category.metaData, isWatched: hasWatched(user, category._id, true), inWatchlist: hasWatched(user, category._id, false), userCount: category.metaData.userCount || 0 }
         : { ...metadataDefault },

@@ -515,69 +515,101 @@ async function leaderboardClimbing(userId, oldLeaderBoard) {
   return leaderboardDetail
 }
 
-// function sortCategoryMain(categories) {
-//   const currentTime = Date.now()
-//   const fifteenDaysInMs = 15 * 24 * 60 * 60 * 1000
-//   const cutoffTime = currentTime - fifteenDaysInMs
-
-//   // Separate categories and shuffle in one pass
-//   const recentCategories = []
-//   const otherCategories = []
-
-//   for (let i = categories.length - 1; i > 0; i--) {
-//     const j = Math.floor(Math.random() * (i + 1))
-//     ;[categories[i], categories[j]] = [categories[j], categories[i]]
-
-//     const category = categories[i]
-//     if (new Date(category.createdAt).getTime() > cutoffTime) {
-//       recentCategories.push(category)
-//     } else {
-//       otherCategories.push(category)
-//     }
-//   }
-
-//   // Handle the last element
-//   const lastCategory = categories[0]
-//   if (new Date(lastCategory.createdAt).getTime() > cutoffTime) {
-//     recentCategories.push(lastCategory)
-//   } else {
-//     otherCategories.push(lastCategory)
-//   }
-//   return recentCategories.concat(otherCategories)
-// }
-
 function sortCategory(categories) {
   const currentTime = Date.now()
   const fifteenDaysInMs = 15 * 24 * 60 * 60 * 1000
   const cutoffTime = currentTime - fifteenDaysInMs
 
-  // Separate categories based on recency
   const popularCategories = []
   const varietyCategories = []
+  const uniqueTypes = []
+  const seenTypes = new Set() // Set to track already added types
 
-  // Iterate through categories to classify them into popular or variety groups
+  // Track the number of occurrences of each type
+  const typeCounts = {}
+
+  // Classify categories into popular or variety
   categories.forEach((category) => {
     const nTimesPlayed = category.metaData?.nTimesPlayed || 0
     const isRecent = new Date(category.createdAt).getTime() > cutoffTime
 
     if (nTimesPlayed > 0) {
-      popularCategories.push(category) // Keep categories with high user count
+      popularCategories.push(category)
     } else if (isRecent || nTimesPlayed === 0) {
-      varietyCategories.push(category) // Keep recently added or less played categories
+      varietyCategories.push(category)
+    }
+
+    // Initialize typeCounts for the category's type
+    if (!typeCounts[category.type]) {
+      typeCounts[category.type] = 0
     }
   })
 
-  // Sort popular categories by userCount (high to low)
-  popularCategories.sort((a, b) => (b.metaData?.nTimesPlayed || 0) - (a.metaData?.nTimesPlayed || 0))
+  // Precompute totalWeight for the popular categories
+  let totalWeight = popularCategories.reduce((sum, category) => sum + (category.metaData?.nTimesPlayed || 0), 0)
 
-  // Shuffle the variety categories for random order
-  for (let i = varietyCategories.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1))
-    ;[varietyCategories[i], varietyCategories[j]] = [varietyCategories[j], varietyCategories[i]]
+  const finalList = []
+  const totalCategories = popularCategories.length + varietyCategories.length
+
+  // Optimize category picking without array splicing
+  while (finalList.length < totalCategories) {
+    if (varietyCategories.length > 0 && Math.random() < 0.3) {
+      // 30% chance to pick from varietyCategories
+      const pickedCategory = varietyCategories.pop()
+      finalList.push(pickedCategory)
+
+      // Add unique types in the order of final sorted categories
+      if (!seenTypes.has(pickedCategory.type)) {
+        uniqueTypes.push(pickedCategory.type)
+        seenTypes.add(pickedCategory.type)
+      }
+
+      // Increment the type count and assign the sort rank
+      typeCounts[pickedCategory.type]++
+      pickedCategory.sort = typeCounts[pickedCategory.type]
+    } else if (popularCategories.length > 0) {
+      // Pick from popularCategories based on weights
+      const randomWeight = Math.random() * totalWeight
+      let cumulativeWeight = 0
+      let pickedIndex = -1
+
+      for (let i = 0; i < popularCategories.length; i++) {
+        cumulativeWeight += popularCategories[i].metaData?.nTimesPlayed || 0
+        if (cumulativeWeight >= randomWeight) {
+          pickedIndex = i
+          break
+        }
+      }
+
+      if (pickedIndex !== -1) {
+        const pickedCategory = popularCategories[pickedIndex]
+        finalList.push(pickedCategory)
+
+        // Adjust totalWeight by subtracting the weight of the picked category
+        totalWeight -= pickedCategory.metaData?.nTimesPlayed || 0
+
+        // Remove the picked category efficiently without using splice
+        popularCategories[pickedIndex] = popularCategories[popularCategories.length - 1]
+        popularCategories.pop()
+
+        // Add unique types in the order of final sorted categories
+        if (!seenTypes.has(pickedCategory.type)) {
+          uniqueTypes.push(pickedCategory.type)
+          seenTypes.add(pickedCategory.type)
+        }
+
+        // Increment the type count and assign the sort rank
+        typeCounts[pickedCategory.type]++
+        pickedCategory.sort = typeCounts[pickedCategory.type]
+      }
+    }
   }
 
-  // Combine popular categories and variety categories into the final list
-  return popularCategories.concat(varietyCategories)
+  // Return both the sorted categories with the 'sort' field and the unique types array
+  return {
+    sortedCategories: finalList,
+    uniqueTypes: uniqueTypes,
+  }
 }
 
 function getNearestFridayStartDate() {

@@ -1,8 +1,6 @@
 const Session = require("../models/Session")
 const Level = require("../models/Level")
 const Score = require("../models/Score")
-const User = require("../models/User")
-const Quests = require("../models/Quests")
 const {
   scoreToStarsConverter,
   getLevelInfo,
@@ -13,12 +11,12 @@ const {
   getCategoryId,
   addRecentlyPlayedCategory,
   getUnlockedLevel,
-  updateXp,
 } = require("../utils/helper")
 const Config = require("../models/Config")
 const { SESSION_ALREADY_COMPLETED, INVALID_SESSION_ID, INVALID_LEVEL, INVALID_SCORE } = require("../config/errorLang")
 const WeeklyLeaderboard = require("../models/WeeklyLeaderboard")
 const { weeklyLeaderboardClimbing, updateWeeklyLeaderboard } = require("../utils/leaderBoardHelper")
+const { updateQuestProgress } = require("./quests")
 
 async function createSession(userId, levelId, multiplayer) {
   if (multiplayer) {
@@ -40,12 +38,12 @@ async function createSession(userId, levelId, multiplayer) {
   return session._id
 }
 
-async function updateSession(sessionId, score, isCompleted, streak) {
+async function updateSession(sessionId, score, isCompleted, streak, testing = false) {
   const session = await Session.findById(sessionId).lean()
   if (!session) {
     throw new Error(INVALID_SESSION_ID)
   }
-  if (session.isCompleted) {
+  if (session.isCompleted && !testing) {
     throw new Error(SESSION_ALREADY_COMPLETED)
   }
 
@@ -151,75 +149,7 @@ async function updateSession(sessionId, score, isCompleted, streak) {
   updatedSession.gems = userInfo.gems
   updatedSession.totalXp = userInfo.totalXp
   updatedSession.totalGems = userInfo.totalGems
-
-  // Play 2 Games Quest logic
-  const [user, quests] = await Promise.all([User.findOne({ _id: updatedSession.userId }, { questProgress: 1, lastDailyLogin: 1 }), Quests.find({}).lean()])
-
-  // Initialize questProgress if it doesn't exist
-  if (!user.questProgress) {
-    user.questProgress = []
-  }
-
-  // Find the daily login quest
-  const playGameQuest = quests.find((q) => q.taskType === "playGames")
-  let questInUserProgress = user.questProgress.find((quest) => quest.questId.toString() === playGameQuest._id.toString())
-
-  if (!questInUserProgress) {
-    // If it doesn't exist, create a new entry
-    questInUserProgress = {
-      questId: playGameQuest._id,
-      completedCount: 1,
-      isCompleted: false,
-    }
-    user.questProgress.push(questInUserProgress)
-    updatedSession.quests = [
-      {
-        title: playGameQuest.title,
-        type: "Play 2 Games",
-        progress: questInUserProgress.completedCount,
-        total: playGameQuest.taskRequirement,
-        xp: 0,
-        toShow: true,
-      },
-    ]
-    if (questInUserProgress.completedCount >= playGameQuest.taskRequirement) {
-      await updateXp(updatedSession.userId, playGameQuest.xpReward, configs[0].gems, configs[0].titles)
-      updatedSession.quests[0].xp = playGameQuest.xpReward
-    }
-    await user.save()
-  } else if (!questInUserProgress.isCompleted) {
-    // If it exists, update the completedCount
-    questInUserProgress.completedCount += 1 // Increment completed count
-    questInUserProgress.isCompleted = questInUserProgress.completedCount >= playGameQuest.taskRequirement // Ensure it's marked as completed
-    updatedSession.quests = [
-      {
-        title: playGameQuest.title,
-        type: "Play 2 Games",
-        progress: questInUserProgress.completedCount,
-        total: playGameQuest.taskRequirement,
-        xp: 0,
-        toShow: true,
-      },
-    ]
-    if (questInUserProgress.completedCount >= playGameQuest.taskRequirement) {
-      await updateXp(updatedSession.userId, playGameQuest.xpReward, configs[0].gems, configs[0].titles)
-      updatedSession.quests[0].xp = playGameQuest.xpReward
-    }
-    await user.save()
-  }
-  if (!updatedSession.quests) {
-    updatedSession.quests = [
-      {
-        title: playGameQuest.title,
-        type: "Play 2 Games",
-        progress: questInUserProgress.completedCount,
-        total: playGameQuest.taskRequirement,
-        xp: 0,
-        toShow: false,
-      },
-    ]
-  }
-  // Save the updated user document
+  updatedSession.quests = await updateQuestProgress(updatedSession.userId, configs)
   return updatedSession
 }
 
