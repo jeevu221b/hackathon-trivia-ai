@@ -172,28 +172,52 @@ async function updateSession(sessionId, score, isCompleted, streak) {
       isCompleted: false,
     }
     user.questProgress.push(questInUserProgress)
-    updatedSession.quest = {
-      title: playGameQuest.title,
-      type: "Play 2 Games",
-      progress: questInUserProgress.completedCount,
-      total: playGameQuest.taskRequirement,
-      xp: playGameQuest.xpReward,
+    updatedSession.quests = [
+      {
+        title: playGameQuest.title,
+        type: "Play 2 Games",
+        progress: questInUserProgress.completedCount,
+        total: playGameQuest.taskRequirement,
+        xp: 0,
+        toShow: true,
+      },
+    ]
+    if (questInUserProgress.completedCount >= playGameQuest.taskRequirement) {
+      await updateXp(updatedSession.userId, playGameQuest.xpReward, configs[0].gems, configs[0].titles)
+      updatedSession.quests[0].xp = playGameQuest.xpReward
     }
-    await updateXp(updatedSession.userId, playGameQuest.xpReward, configs[0].gems, configs[0].titles)
     await user.save()
   } else if (!questInUserProgress.isCompleted) {
     // If it exists, update the completedCount
     questInUserProgress.completedCount += 1 // Increment completed count
     questInUserProgress.isCompleted = questInUserProgress.completedCount >= playGameQuest.taskRequirement // Ensure it's marked as completed
-    updatedSession.quest = {
-      title: playGameQuest.title,
-      type: "Play 2 Games",
-      progress: questInUserProgress.completedCount,
-      total: playGameQuest.taskRequirement,
-      xp: playGameQuest.xpReward,
+    updatedSession.quests = [
+      {
+        title: playGameQuest.title,
+        type: "Play 2 Games",
+        progress: questInUserProgress.completedCount,
+        total: playGameQuest.taskRequirement,
+        xp: 0,
+        toShow: true,
+      },
+    ]
+    if (questInUserProgress.completedCount >= playGameQuest.taskRequirement) {
+      await updateXp(updatedSession.userId, playGameQuest.xpReward, configs[0].gems, configs[0].titles)
+      updatedSession.quests[0].xp = playGameQuest.xpReward
     }
-    await updateXp(updatedSession.userId, playGameQuest.xpReward, configs[0].gems, configs[0].titles)
     await user.save()
+  }
+  if (!updatedSession.quests) {
+    updatedSession.quests = [
+      {
+        title: playGameQuest.title,
+        type: "Play 2 Games",
+        progress: questInUserProgress.completedCount,
+        total: playGameQuest.taskRequirement,
+        xp: 0,
+        toShow: false,
+      },
+    ]
   }
   // Save the updated user document
   return updatedSession

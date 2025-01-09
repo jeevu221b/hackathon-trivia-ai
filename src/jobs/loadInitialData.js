@@ -13,7 +13,7 @@ const { metadataDefault } = require("./helper")
 const Quests = require("../models/Quests")
 
 async function loadInitialData(userId, multiplayer, firstLogin) {
-  const bigData = { categories: [], subcategories: [], levels: [], questions: [] }
+  const bigData = { categories: [], subcategories: [], levels: [], questions: [], quests: [] }
   const [categories, levels, scores, configs, subcategories, user, quests] = await Promise.all([
     Category.find({}).lean(),
     Level.find({}, { questions: 0 }).lean(),
@@ -27,7 +27,7 @@ async function loadInitialData(userId, multiplayer, firstLogin) {
   const now = new Date()
   const twentyFourHours = 24 * 60 * 60 * 1000 // 24 hours in milliseconds
 
-  if (!user.lastDailyLogin || now - new Date(user.lastDailyLogin) < twentyFourHours) {
+  if (!user.lastDailyLogin || now - new Date(user.lastDailyLogin) > twentyFourHours) {
     console.log("More than 24 hrs")
     user.lastDailyLogin = now
 
@@ -57,7 +57,7 @@ async function loadInitialData(userId, multiplayer, firstLogin) {
     const updatedXp = await updateXp(userId, dailyLoginQuesttt.xpReward, configs[0].gems, configs[0].titles)
 
     // Update bigData for the quest
-    bigData.quest = {
+    bigData.quests.push({
       title: dailyLoginQuesttt.title,
       type: "login",
       progress: dailyLoginQuest.completedCount,
@@ -65,15 +65,35 @@ async function loadInitialData(userId, multiplayer, firstLogin) {
       // isCompleted: dailyLoginQuest.isCompleted,
       // requiredXp: `You need ${updatedXp.requiredXp} XP to unlock a gem :D`,
       xp: updatedXp.xp,
+      toShow: true,
       // gemsRewarded: updatedXp.gems,
       // totalXp: updatedXp.totalXp,
       // totalGems: updatedXp.totalGems,
-    }
+    })
 
     // Save the updated user document
     await user.save()
   } else {
     console.log("Not more than 24 hours")
+  }
+  if (bigData.quests.length === 0) {
+    const dailyLoginQuesttt = quests.find((q) => q.taskType === "login")
+    let dailyLoginQuest = user.questProgress.find((quest) => quest.questId.toString() === dailyLoginQuesttt._id.toString())
+    if (dailyLoginQuest) {
+      bigData.quests.push({
+        title: dailyLoginQuesttt.title,
+        type: "login",
+        progress: dailyLoginQuest.completedCount,
+        total: dailyLoginQuesttt.taskRequirement,
+        // isCompleted: dailyLoginQuest.isCompleted,
+        // requiredXp: `You need ${updatedXp.requiredXp} XP to unlock a gem :D`,
+        xp: 0,
+        toShow: false,
+        // gemsRewarded: updatedXp.gems,
+        // totalXp: updatedXp.totalXp,
+        // totalGems: updatedXp.totalGems,
+      })
+    }
   }
 
   const sortedCategories = sortCategory(categories)

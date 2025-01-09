@@ -1,6 +1,5 @@
 const express = require("express")
 const { createQuest, getQuests } = require("../jobs/quests")
-const User = require("../models/User")
 const router = express.Router()
 
 router.post("/create/quest", async (req, res) => {

@@ -515,35 +515,69 @@ async function leaderboardClimbing(userId, oldLeaderBoard) {
   return leaderboardDetail
 }
 
+// function sortCategoryMain(categories) {
+//   const currentTime = Date.now()
+//   const fifteenDaysInMs = 15 * 24 * 60 * 60 * 1000
+//   const cutoffTime = currentTime - fifteenDaysInMs
+
+//   // Separate categories and shuffle in one pass
+//   const recentCategories = []
+//   const otherCategories = []
+
+//   for (let i = categories.length - 1; i > 0; i--) {
+//     const j = Math.floor(Math.random() * (i + 1))
+//     ;[categories[i], categories[j]] = [categories[j], categories[i]]
+
+//     const category = categories[i]
+//     if (new Date(category.createdAt).getTime() > cutoffTime) {
+//       recentCategories.push(category)
+//     } else {
+//       otherCategories.push(category)
+//     }
+//   }
+
+//   // Handle the last element
+//   const lastCategory = categories[0]
+//   if (new Date(lastCategory.createdAt).getTime() > cutoffTime) {
+//     recentCategories.push(lastCategory)
+//   } else {
+//     otherCategories.push(lastCategory)
+//   }
+//   return recentCategories.concat(otherCategories)
+// }
+
 function sortCategory(categories) {
   const currentTime = Date.now()
   const fifteenDaysInMs = 15 * 24 * 60 * 60 * 1000
   const cutoffTime = currentTime - fifteenDaysInMs
 
-  // Separate categories and shuffle in one pass
-  const recentCategories = []
-  const otherCategories = []
+  // Separate categories based on recency
+  const popularCategories = []
+  const varietyCategories = []
 
-  for (let i = categories.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1))
-    ;[categories[i], categories[j]] = [categories[j], categories[i]]
+  // Iterate through categories to classify them into popular or variety groups
+  categories.forEach((category) => {
+    const nTimesPlayed = category.metaData?.nTimesPlayed || 0
+    const isRecent = new Date(category.createdAt).getTime() > cutoffTime
 
-    const category = categories[i]
-    if (new Date(category.createdAt).getTime() > cutoffTime) {
-      recentCategories.push(category)
-    } else {
-      otherCategories.push(category)
+    if (nTimesPlayed > 0) {
+      popularCategories.push(category) // Keep categories with high user count
+    } else if (isRecent || nTimesPlayed === 0) {
+      varietyCategories.push(category) // Keep recently added or less played categories
     }
+  })
+
+  // Sort popular categories by userCount (high to low)
+  popularCategories.sort((a, b) => (b.metaData?.nTimesPlayed || 0) - (a.metaData?.nTimesPlayed || 0))
+
+  // Shuffle the variety categories for random order
+  for (let i = varietyCategories.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[varietyCategories[i], varietyCategories[j]] = [varietyCategories[j], varietyCategories[i]]
   }
 
-  // Handle the last element
-  const lastCategory = categories[0]
-  if (new Date(lastCategory.createdAt).getTime() > cutoffTime) {
-    recentCategories.push(lastCategory)
-  } else {
-    otherCategories.push(lastCategory)
-  }
-  return recentCategories.concat(otherCategories)
+  // Combine popular categories and variety categories into the final list
+  return popularCategories.concat(varietyCategories)
 }
 
 function getNearestFridayStartDate() {
@@ -850,6 +884,12 @@ async function addMultiplayerXp(scores) {
 
 async function addRecentlyPlayedCategory(userId, categoryId) {
   const user = await User.findOne({ _id: userId })
+  const category = await Category.findOne({ _id: categoryId })
+  if (category) {
+    category.metaData = category.metaData || { nTimesPlayed: 0 }
+    category.metaData.nTimesPlayed++
+    await category.save()
+  }
   if (user) {
     // Initialize recentlyPlayed if it doesn't exist or is empty
     if (!user.recentlyPlayed || user.recentlyPlayed.length === 0) {
@@ -862,7 +902,7 @@ async function addRecentlyPlayedCategory(userId, categoryId) {
     }
 
     // Remove the category if it already exists to avoid duplicates
-    user.recentlyPlayed[0].categories = user.recentlyPlayed[0].categories.filter((id) => id.toString() !== categoryId.toString())
+    user.recentlyPlayed[0].categories = user.recentlyPlayed[0]?.categories.filter((id) => id?.toString() !== categoryId?.toString())
 
     // Add the new category to the end
     if (user.recentlyPlayed[0].categories.length >= 5) {
