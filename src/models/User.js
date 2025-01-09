@@ -43,6 +43,40 @@ const questProgressSchema = new mongoose.Schema(
   { timestamps: true }
 )
 
+const userCardsSchema = new mongoose.Schema(
+  {
+    // cardId: {
+    //   type: mongoose.Schema.Types.ObjectId,
+    //   ref: "Card",
+    //   required: true,
+    // },
+    cardId: {
+      type: String,
+    },
+    isOnCooldown: {
+      type: Boolean,
+      default: false,
+    },
+    cooldownEnd: {
+      type: Date,
+      default: null, // when the card can be used again
+    },
+    cooldownStart: {
+      type: Date,
+      default: null, // when the card went on cooldown
+    },
+    uses: {
+      type: Number, // optional limit to how many times a card can be used
+      default: 0,
+    },
+    maxUses: {
+      type: Number,
+      default: 5,
+    },
+  },
+  { timestamps: true }
+)
+
 const UserSchema = new mongoose.Schema(
   {
     email: {
@@ -88,14 +122,13 @@ const UserSchema = new mongoose.Schema(
     questProgress: {
       type: [questProgressSchema], // Track the progress of daily quests
     },
+    cards: {
+      type: [userCardsSchema],
+    },
     spinWheelHistory: {
       type: [String],
-      enum: ["xp", "gems", "card"],
+      // enum: ["xp", "gems", "card"],
       default: [],
-    },
-    password: {
-      type: String,
-      default: null,
     },
   },
   { timestamps: true }

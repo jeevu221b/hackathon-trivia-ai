@@ -1,11 +1,12 @@
 const express = require("express")
 const Card = require("../models/Card")
 const User = require("../models/User")
+const { addCardToUserCardscollection } = require("../utils/helper")
 const router = express.Router()
 
-router.get("/show/cards", async (req, res) => {
+router.get("/wheel/items", async (req, res) => {
   try {
-    const response = await showCards()
+    const response = await wheelItems()
     return res.status(200).send(response)
   } catch (error) {
     console.error(error)
@@ -13,10 +14,10 @@ router.get("/show/cards", async (req, res) => {
   }
 })
 
-router.get("/get/card", async (req, res) => {
+router.get("/wheel/spin", async (req, res) => {
   try {
-    const { internaluserId } = req.body
-    const response = await getCards(internaluserId)
+    const { internaluserId, items } = req.body
+    const response = await wheelSpin(internaluserId, items)
     return res.status(200).send(response)
   } catch (error) {
     console.error(error)
@@ -24,7 +25,7 @@ router.get("/get/card", async (req, res) => {
   }
 })
 
-function showCards() {
+async function wheelItems() {
   return Card.find({}, { name: 1, rarity: 1, spinWheelHistory: 1 })
     .lean()
     .then((result) => {
@@ -53,25 +54,52 @@ function showCards() {
     .catch((err) => err)
 }
 
-async function getCards(userId) {
+async function retrieveCards() {
+  try {
+    const cards = []
+    const allCards = await Card.find({}, { name: 1, rarity: 1, spinWheelHistory: 1, limit: 1 })
+    for (let card of allCards) {
+      cards.push({ id: card._id, item: card.name, type: "card", rarity: card.rarity, limit: card.limit }) // Add each card as a 'card' type
+    }
+    return cards
+  } catch (error) {
+    console.error(error)
+    throw new Error("Error retrieving cards")
+  }
+}
+
+async function wheelSpin(userId, items) {
   const user = await User.findById(userId)
   if (!user) {
     throw new Error("User not found")
   }
-
+  const spinTheWheel = []
   if (user.gems >= 1) {
     user.gems -= 1
-    const items = await showCards()
+    const getAllCards = await retrieveCards()
+    spinTheWheel.push(...getAllCards)
+    for (let item of items) {
+      spinTheWheel.push(item)
+    }
     // Initialize spinWheelHistory if undefined
     if (!Array.isArray(user.spinWheelHistory)) {
       user.spinWheelHistory = []
     }
 
-    const result = spinWheel(user.spinWheelHistory, items)
+    const result = spinWheel(user.spinWheelHistory, spinTheWheel)
 
     // Ensure result.type is valid
     if (["xp", "gems", "card"].includes(result.type)) {
-      user.spinWheelHistory.push(result.type.toString()) // Push the valid outcome (e.g., "xp", "gems", or "card")
+      user.spinWheelHistory.push(result.item.toString()) // Push the valid outcome (e.g., "xp", "gems", or "card")
+      if (result.type === "gems") {
+        user.gems += parseInt(result.item)
+      } else if (result.type === "xp") {
+        user.xp += parseInt(result.item)
+      } else if (result.type === "card") {
+        // find the card from the getAllCards array
+        const card = getAllCards.find((c) => c.item === result.item)
+        await addCardToUserCardscollection(user, card)
+      }
     } else {
       throw new Error("Invalid spin outcome type")
     }

@@ -9,7 +9,7 @@ const dataRoutes = require("./dataRoutes")
 const loginRoute = require("./loginRoute")
 const xpRoutes = require("./xpRoutes")
 const questsRoutes = require("./questsRoute")
-const cardsRoutes = require("./cardsRoute")
+const cardsRoutes = require("./cardsRoutes")
 
 router.use(categoryRoutes, subcategoryRoutes, questionRoutes, sessionRoutes, dataRoutes, loginRoute, xpRoutes, questsRoutes, cardsRoutes)
 

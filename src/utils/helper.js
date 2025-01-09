@@ -18,6 +18,8 @@ const User = require("../models/User")
 const WeeklyLeaderboard = require("../models/WeeklyLeaderboard")
 const WeeklyLeaderboardWinners = require("../models/WeeklyLeaderboardWinners")
 const { metadataDefault } = require("../jobs/helper")
+const UserCards = require("../models/UserCards")
+const Card = require("../models/Card")
 
 env.config()
 
@@ -131,7 +133,7 @@ async function addUserToWeeklyLeaderBoardWinners(weeklyLeaderboard) {
 
 async function getLeaderBoard(currentUser) {
   const leaderboardData = []
-  const weeklyLeaderboardData = []
+  // const weeklyLeaderboardData = []
   const leaderboard = await Leaderboard.findOne({}, { users: 1 })
   const weeklyLeaderboard = await WeeklyLeaderboard.findOne({}, { users: 1, climbedAt: 1, endsAt: 1 }).lean()
   if (!weeklyLeaderboard) {
@@ -144,7 +146,7 @@ async function getLeaderBoard(currentUser) {
     await resetWeeklyLeaderBoard()
   }
 
-  const users = await User.find({})
+  // const users = await User.find({})
   if (leaderboard) {
     for (const data of leaderboard.users) {
       if (data.user.equals(currentUser)) {
@@ -164,45 +166,11 @@ async function getLeaderBoard(currentUser) {
         })
       }
     }
-  }
 
-  if (weeklyLeaderboard) {
-    for (const data of weeklyLeaderboard.users) {
-      if (data.user.equals(currentUser)) {
-        weeklyLeaderboardData.push({
-          userId: data.user,
-          username: data.username,
-          score: data.score,
-          stars: data.stars,
-          currentUser: true,
-        })
-      } else {
-        weeklyLeaderboardData.push({
-          userId: data.user,
-          username: data.username,
-          score: data.score,
-          stars: data.stars,
-        })
-      }
-    }
+    return leaderboardData.sort((a, b) => b.score - a.score)
+  } else {
+    throw new Error("User not found :(")
   }
-
-  // Those user who has not played the game yet, set their scores to 0 and return them
-  for (const user of users) {
-    if (!leaderboard.users.some((data) => data.user.equals(user._id))) {
-      leaderboardData.push({
-        userId: user._id,
-        username: user.username,
-        score: 0,
-        stars: 0,
-        ...(user._id.equals(currentUser) ? { currentUser: true } : {}),
-      })
-    }
-  }
-  const sortedLeaderboard = leaderboardData.sort((a, b) => b.score - a.score)
-  const sortedWeeklyLeaderboard = weeklyLeaderboardData.sort((a, b) => b.score - a.score)
-  if (weeklyLeaderboard?.climbedAt) sortedWeeklyLeaderboard[0].climbedAt = weeklyLeaderboard.climbedAt
-  return { all: sortedLeaderboard, weekly: sortedWeeklyLeaderboard }
 }
 async function isLevelUnlockedForUser(userId, levelId) {
   const level = await Level.findById({ _id: levelId }, { _id: 1, subcategory: 1 })
@@ -336,19 +304,6 @@ async function createUser(email, name) {
   }
 }
 
-async function verifyUser(email, password) {
-  try {
-    const user = await User.findOne({ email, password })
-    if (user) {
-      return user
-    }
-    throw new Error("User not found")
-  } catch (error) {
-    console.error(error)
-    throw new Error(error)
-  }
-}
-
 async function getUserProfile(userId) {
   if (!userId) {
     throw new Error("Invalid input")
@@ -381,6 +336,17 @@ async function getUserProfile(userId) {
     gems: userInfo.gems,
     // title: config?.title || 0,
     title: config?.title ? config.title.concat(" ", getRankTier(totalScore, config.xp)) : 0,
+    spinWheelHistory: userInfo.spinWheelHistory,
+    cards: await getAllUserCards(userId),
+    // cards: [{
+    //   is
+    //   cardId: "1",
+    //   cardName: "Double Points",
+    //   cardDescription: "Double the points for the next question",
+    //   cardImage: "https://res.cloudinary.com/dxkufsejm/image/upload/v1631084177/Double_Points_1_2x,
+    //   cardUI: {
+    //   }
+    // }]
 
     // titleIndex: userInfo.title,
   })
@@ -1128,6 +1094,59 @@ async function getWatchList(userId) {
   }
 }
 
+async function addCardToUserCardscollection(userId, card) {
+  try {
+    // Check if user has the card
+    const userCard = await UserCards.find({ userId, cardId: card.id })
+    if (!userCard.length) {
+      // Check if the user doesn't have the card
+      const isFirstCard = (await UserCards.countDocuments({ userId })) === 0
+
+      const newCard = new UserCards({
+        userId,
+        cardId: card.id,
+        isActive: isFirstCard, // Set as active only if it's the first card
+        limit: card.limit,
+        cooldown: { startedAt: Date.now(), endsAt: Date.now() },
+      })
+
+      await newCard.save() // Save the new card to the database
+    } else {
+      console.log(`User already has card .`)
+    }
+  } catch (error) {
+    console.error(error)
+    throw new Error(error)
+  }
+}
+
+async function getAllUserCards(userId) {
+  try {
+    // Fetch all cards for the user
+    const userCards = await UserCards.find({ userId }, { cardId: 1, isActive: 1, _id: 0 }).lean()
+    const cards = await Card.find({}, { cardUi: 1 }).lean()
+
+    // Check if user has any cards
+    if (!userCards.length) {
+      console.log("User has no cards.")
+      return []
+    }
+    for (const usercard of userCards) {
+      for (const card of cards) {
+        if (usercard.cardId.toString() == card._id.toString()) {
+          usercard.name = card.cardUi.name
+          usercard.description = card.cardUi.description
+        }
+      }
+    }
+
+    return userCards
+  } catch (error) {
+    console.error(error)
+    throw new Error(error)
+  }
+}
+
 module.exports = {
   getWatchList,
   updateWatchList,
@@ -1172,5 +1191,6 @@ module.exports = {
   updateScore,
   xpToGetGem,
   getRankTier,
-  verifyUser,
+  addCardToUserCardscollection,
+  getAllUserCards,
 }

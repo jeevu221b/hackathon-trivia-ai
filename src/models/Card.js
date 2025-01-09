@@ -37,8 +37,45 @@ const valueSchema = new mongoose.Schema({
   },
 })
 
+const cardUiSchema = new mongoose.Schema({
+  name: {
+    type: String,
+  },
+  description: {
+    type: String,
+    default: "description",
+  },
+  cooldown: {
+    type: Number,
+  },
+  uses: {
+    type: String,
+  },
+  rarity: {
+    type: String,
+  },
+  backgroundColor: {
+    type: String,
+  },
+  imageName: {
+    type: String,
+  },
+})
+
 const CardSchema = new mongoose.Schema(
   {
+    cardUi: {
+      type: cardUiSchema,
+      required: true,
+
+      //        let name: String
+      //  let description: String
+      //  let cooldown: String
+      //  let uses: String
+      //  let rarity: String
+      //  let backgroundColor: Color
+      //  let imageName: String
+    },
     name: {
       type: String,
       required: true,
@@ -93,6 +130,10 @@ const CardSchema = new mongoose.Schema(
       type: Number,
       default: 0,
       required: true,
+    },
+    isPowerCard: {
+      type: Boolean,
+      default: false,
     },
   },
   { timestamps: true }
