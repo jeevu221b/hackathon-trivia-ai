@@ -12,6 +12,7 @@ const commonLang = {
   MISSING_PARAM: "Both Subcategory ID and Level is required",
   SESSION_ALREADY_COMPLETED: "Session is already completed",
   INVALID_SCORE: "Invalid score",
+  INSUFFICIENT_GEMS: "You need more than 1 gem to spin the wheel",
 }
 
 module.exports = commonLang

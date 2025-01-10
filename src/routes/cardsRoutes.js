@@ -2,6 +2,8 @@ const express = require("express")
 const Card = require("../models/Card")
 const User = require("../models/User")
 const { addCardToUserCardscollection } = require("../utils/helper")
+const { APIError, sendAPIErrorResponse } = require("../utils/errorHandler")
+const commonLang = require("../config/errorLang")
 const router = express.Router()
 
 router.get("/wheel/items", async (req, res) => {
@@ -20,8 +22,7 @@ router.get("/wheel/spin", async (req, res) => {
     const response = await wheelSpin(internaluserId, items)
     return res.status(200).send(response)
   } catch (error) {
-    console.error(error)
-    return res.status(error.statusCode || 400).send(error.message)
+    return sendAPIErrorResponse(res, error)
   }
 })
 
@@ -71,7 +72,7 @@ async function retrieveCards() {
 async function wheelSpin(userId, items) {
   const user = await User.findById(userId)
   if (!user) {
-    throw new Error("User not found")
+    throw new APIError("User not found", 404)
   }
   const spinTheWheel = []
   if (user.gems >= 1) {
@@ -106,7 +107,7 @@ async function wheelSpin(userId, items) {
     await user.save()
     return result
   } else {
-    throw new Error("Insufficient gems :(")
+    throw new APIError(commonLang.INSUFFICIENT_GEMS, 402, "INSUFFICIENT_GEMS")
   }
 }
 

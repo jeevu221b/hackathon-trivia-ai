@@ -304,6 +304,19 @@ async function createUser(email, name) {
   }
 }
 
+async function verifyUser(email, password) {
+  try {
+    const user = await User.findOne({ email, password })
+    if (user) {
+      return user
+    }
+    throw new Error("User not found")
+  } catch (error) {
+    console.error(error)
+    throw new Error(error)
+  }
+}
+
 async function getUserProfile(userId) {
   if (!userId) {
     throw new Error("Invalid input")
@@ -1193,4 +1206,5 @@ module.exports = {
   getRankTier,
   addCardToUserCardscollection,
   getAllUserCards,
+  verifyUser,
 }

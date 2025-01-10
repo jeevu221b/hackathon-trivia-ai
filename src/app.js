@@ -26,7 +26,7 @@ function logRequests(req, res, next) {
 
 app.use(logRequests)
 
-const nonAuthRoutes = ["/api/login"]
+const nonAuthRoutes = ["/api/login", "/api/developer-login"]
 
 app.use((req, res, next) => {
   if (nonAuthRoutes.includes(req.url)) {
