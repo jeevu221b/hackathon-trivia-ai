@@ -26,6 +26,15 @@ router.get("/wheel/spin", async (req, res) => {
   }
 })
 
+router.get("/get/cards", async (req, res) => {
+  try {
+    const response = await getCards()
+    return res.status(200).send(response)
+  } catch (error) {
+    return sendAPIErrorResponse(res, error)
+  }
+})
+
 async function wheelItems() {
   return Card.find({}, { name: 1, rarity: 1, spinWheelHistory: 1 })
     .lean()
@@ -166,6 +175,24 @@ function spinWheel(userSpinHistory, items) {
       // Log the spin result to user history
       return { item: items[i].item, type: items[i].type } // Return the selected item
     }
+  }
+}
+
+async function getCards() {
+  try {
+    const allCards = await Card.find({}, { _id: 0, cardUi: 1 }).lean()
+    return allCards.map(({ cardUi }) => ({
+      name: cardUi.name,
+      description: cardUi.description,
+      cooldown: cardUi.cooldown,
+      uses: cardUi.uses,
+      rarity: cardUi.rarity,
+      backgroundColor: cardUi.backgroundColor,
+      imageName: cardUi.name,
+    }))
+  } catch (error) {
+    console.error(error)
+    throw new Error("Error retrieving cards")
   }
 }
 

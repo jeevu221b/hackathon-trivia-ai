@@ -133,7 +133,7 @@ async function addUserToWeeklyLeaderBoardWinners(weeklyLeaderboard) {
 
 async function getLeaderBoard(currentUser) {
   const leaderboardData = []
-  // const weeklyLeaderboardData = []
+  const weeklyLeaderboardData = []
   const leaderboard = await Leaderboard.findOne({}, { users: 1 })
   const weeklyLeaderboard = await WeeklyLeaderboard.findOne({}, { users: 1, climbedAt: 1, endsAt: 1 }).lean()
   if (!weeklyLeaderboard) {
@@ -146,7 +146,7 @@ async function getLeaderBoard(currentUser) {
     await resetWeeklyLeaderBoard()
   }
 
-  // const users = await User.find({})
+  const users = await User.find({})
   if (leaderboard) {
     for (const data of leaderboard.users) {
       if (data.user.equals(currentUser)) {
@@ -166,11 +166,45 @@ async function getLeaderBoard(currentUser) {
         })
       }
     }
-
-    return leaderboardData.sort((a, b) => b.score - a.score)
-  } else {
-    throw new Error("User not found :(")
   }
+
+  if (weeklyLeaderboard) {
+    for (const data of weeklyLeaderboard.users) {
+      if (data.user.equals(currentUser)) {
+        weeklyLeaderboardData.push({
+          userId: data.user,
+          username: data.username,
+          score: data.score,
+          stars: data.stars,
+          currentUser: true,
+        })
+      } else {
+        weeklyLeaderboardData.push({
+          userId: data.user,
+          username: data.username,
+          score: data.score,
+          stars: data.stars,
+        })
+      }
+    }
+  }
+
+  // Those user who has not played the game yet, set their scores to 0 and return them
+  for (const user of users) {
+    if (!leaderboard.users.some((data) => data.user.equals(user._id))) {
+      leaderboardData.push({
+        userId: user._id,
+        username: user.username,
+        score: 0,
+        stars: 0,
+        ...(user._id.equals(currentUser) ? { currentUser: true } : {}),
+      })
+    }
+  }
+  const sortedLeaderboard = leaderboardData.sort((a, b) => b.score - a.score)
+  const sortedWeeklyLeaderboard = weeklyLeaderboardData.sort((a, b) => b.score - a.score)
+  if (weeklyLeaderboard?.climbedAt) sortedWeeklyLeaderboard[0].climbedAt = weeklyLeaderboard.climbedAt
+  return { all: sortedLeaderboard, weekly: sortedWeeklyLeaderboard }
 }
 async function isLevelUnlockedForUser(userId, levelId) {
   const level = await Level.findById({ _id: levelId }, { _id: 1, subcategory: 1 })
@@ -1149,6 +1183,11 @@ async function getAllUserCards(userId) {
         if (usercard.cardId.toString() == card._id.toString()) {
           usercard.name = card.cardUi.name
           usercard.description = card.cardUi.description
+          usercard.cooldown = card.cardUi.cooldown
+          usercard.uses = card.cardUi.uses
+          usercard.rarity = card.cardUi.rarity
+          usercard.backgroundColor = card.cardUi.backgroundColor
+          usercard.imageName = card.cardUi.name
         }
       }
     }

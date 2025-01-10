@@ -46,7 +46,7 @@ const cardUiSchema = new mongoose.Schema({
     default: "description",
   },
   cooldown: {
-    type: Number,
+    type: String,
   },
   uses: {
     type: String,
