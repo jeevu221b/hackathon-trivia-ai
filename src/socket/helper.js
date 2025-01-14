@@ -1,7 +1,9 @@
 const User = require("../models/User")
+const UserCards = require("../models/UserCards")
+const { setCardOnCooldown } = require("../utils/helper")
 
 function roomUsersScore(args) {
-  const { id, username, score, isOnline, userId, answerState, lastQuestionScore = 0, isMe = false } = args
+  const { id, username, score, isOnline, userId, answerState, lastQuestionScore = 0, isMe = false, card } = args
 
   if (username === undefined) {
     throw new Error("The argument 'username' is required.")
@@ -60,6 +62,7 @@ function roomUsersScore(args) {
     id,
     lastQuestionScore,
     isMe,
+    card,
   }
 }
 const streakMessages = [
@@ -181,4 +184,41 @@ function isCardApplierInRoom(roomUsers) {
   return roomUsers.some((user) => user.isApplier && user.isOnline)
 }
 
-module.exports = { roomUsersScore, getStreakMessage, removeUserFromSession, useCard, isCardApplierInRoom }
+async function updateCooldownStatuses(users) {
+  for (let user of users) {
+    if (user.card && user.card.isOnCooldown) {
+      const userCard = await UserCards.findOne({ userId: user.userId, cardId: user.card.id, isOnCooldown: false }, { isOnCooldown: 1 }).lean()
+      if (userCard) {
+        user.card.isOnCooldown = userCard.isOnCooldown
+      }
+    }
+  }
+  return users
+}
+
+async function startCooldown(session, currentQuestionIndex) {
+  for (let card in session.cards) {
+    if (session.cards[card].users.length > 0) {
+      // Iterate over all the users who have used the card
+      for (let i = 0; i < session.cards[card].users.length; i++) {
+        const userCard = session.cards[card].users[i]
+        if (currentQuestionIndex - userCard.usedAtIndex == session.cards[card].limit + 1) {
+          session.users.forEach((user) => {
+            if (user.userId.toString() === userCard.userId.toString()) {
+              if (user.card) {
+                user.card.isOnCooldown = true // Set the cooldown
+              }
+            }
+          })
+          await setCardOnCooldown(card, userCard.userId)
+          // Remove the user card from the array
+          session.cards[card].users.splice(i, 1)
+          i-- // Adjust the index to account for the removed item
+        }
+      }
+    }
+  }
+  return session
+}
+
+module.exports = { roomUsersScore, getStreakMessage, removeUserFromSession, useCard, isCardApplierInRoom, updateCooldownStatuses, startCooldown }

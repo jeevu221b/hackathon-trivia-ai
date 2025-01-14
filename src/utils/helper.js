@@ -133,7 +133,7 @@ async function addUserToWeeklyLeaderBoardWinners(weeklyLeaderboard) {
 
 async function getLeaderBoard(currentUser) {
   const leaderboardData = []
-  const weeklyLeaderboardData = []
+  // const weeklyLeaderboardData = []
   const leaderboard = await Leaderboard.findOne({}, { users: 1 })
   const weeklyLeaderboard = await WeeklyLeaderboard.findOne({}, { users: 1, climbedAt: 1, endsAt: 1 }).lean()
   if (!weeklyLeaderboard) {
@@ -146,7 +146,7 @@ async function getLeaderBoard(currentUser) {
     await resetWeeklyLeaderBoard()
   }
 
-  const users = await User.find({})
+  // const users = await User.find({})
   if (leaderboard) {
     for (const data of leaderboard.users) {
       if (data.user.equals(currentUser)) {
@@ -166,45 +166,11 @@ async function getLeaderBoard(currentUser) {
         })
       }
     }
-  }
 
-  if (weeklyLeaderboard) {
-    for (const data of weeklyLeaderboard.users) {
-      if (data.user.equals(currentUser)) {
-        weeklyLeaderboardData.push({
-          userId: data.user,
-          username: data.username,
-          score: data.score,
-          stars: data.stars,
-          currentUser: true,
-        })
-      } else {
-        weeklyLeaderboardData.push({
-          userId: data.user,
-          username: data.username,
-          score: data.score,
-          stars: data.stars,
-        })
-      }
-    }
+    return leaderboardData.sort((a, b) => b.score - a.score)
+  } else {
+    throw new Error("User not found :(")
   }
-
-  // Those user who has not played the game yet, set their scores to 0 and return them
-  for (const user of users) {
-    if (!leaderboard.users.some((data) => data.user.equals(user._id))) {
-      leaderboardData.push({
-        userId: user._id,
-        username: user.username,
-        score: 0,
-        stars: 0,
-        ...(user._id.equals(currentUser) ? { currentUser: true } : {}),
-      })
-    }
-  }
-  const sortedLeaderboard = leaderboardData.sort((a, b) => b.score - a.score)
-  const sortedWeeklyLeaderboard = weeklyLeaderboardData.sort((a, b) => b.score - a.score)
-  if (weeklyLeaderboard?.climbedAt) sortedWeeklyLeaderboard[0].climbedAt = weeklyLeaderboard.climbedAt
-  return { all: sortedLeaderboard, weekly: sortedWeeklyLeaderboard }
 }
 async function isLevelUnlockedForUser(userId, levelId) {
   const level = await Level.findById({ _id: levelId }, { _id: 1, subcategory: 1 })
@@ -335,19 +301,6 @@ async function createUser(email, name) {
   } catch (error) {
     console.error(error)
     throw new Error("Invalid input")
-  }
-}
-
-async function verifyUser(email, password) {
-  try {
-    const user = await User.findOne({ email, password })
-    if (user) {
-      return user
-    }
-    throw new Error("User not found")
-  } catch (error) {
-    console.error(error)
-    throw new Error(error)
   }
 }
 
@@ -1199,6 +1152,76 @@ async function getAllUserCards(userId) {
   }
 }
 
+async function getUserActiveCard(userId) {
+  try {
+    // Fetch the active card for the user
+    const activeCard = await UserCards.findOne({ userId, isActive: true, isOnCooldown: false }, { cardId: 1, _id: 0 }).lean()
+
+    // Check if user has an active card
+    if (!activeCard) {
+      console.log("User has no active card.")
+      return null
+    }
+    const card = await Card.findById(activeCard.cardId, { cardUi: 1 }).lean()
+    return { id: activeCard.cardId, name: card.cardUi.name, isOnCooldown: false }
+  } catch (error) {
+    console.error(error)
+    throw new Error(error)
+  }
+}
+
+async function setCardOnCooldown(cardId, userId) {
+  try {
+    // Fetch the user's card
+    const userCard = await UserCards.findOne({ userId, cardId })
+    if (!userCard) {
+      console.log(`User card not found for userId: ${userId} and cardId: ${cardId}`)
+    }
+
+    // Fetch the card details to get the cooldown value
+    const card = await Card.findOne({ _id: cardId }, { cooldown: 1 }).lean()
+    if (!card || typeof card.cooldown !== "number") {
+      throw new Error(`Card not found or invalid cooldown for cardId: ${cardId}`)
+    }
+
+    // Update cooldown times on the user's card
+    userCard.isOnCooldown = true
+    userCard.cooldown = {
+      startedAt: Date.now(),
+      endsAt: Date.now() + card.cooldown * 1000, // Convert seconds to milliseconds
+    }
+
+    // Save the updated user card
+    await userCard.save()
+    console.log("Card Updated")
+  } catch (error) {
+    console.error(`Error in setCardOnCooldown: ${error.message}`, error)
+    throw error // Re-throw the original error for upstream handling
+  }
+}
+
+async function cooldownResetService() {
+  try {
+    // Find all user cards that are on cooldown
+    console.log("Cooldown Service Running")
+    const userCards = await UserCards.find({ isOnCooldown: true })
+    // Iterate over each user card to check if cooldown has ended
+    for (const userCard of userCards) {
+      // Check if the cooldown has ended
+      if (Date.now() >= userCard.cooldown.endsAt) {
+        // Reset the cooldown and set the card as active
+        userCard.isOnCooldown = false
+        // Save the updated user card
+        await userCard.save()
+        console.log("Cooldowns reset successfully")
+      }
+    }
+  } catch (error) {
+    console.error(`Error in cooldownReset: ${error.message}`, error)
+    throw error
+  }
+}
+
 module.exports = {
   getWatchList,
   updateWatchList,
@@ -1245,5 +1268,7 @@ module.exports = {
   getRankTier,
   addCardToUserCardscollection,
   getAllUserCards,
-  verifyUser,
+  getUserActiveCard,
+  setCardOnCooldown,
+  cooldownResetService,
 }

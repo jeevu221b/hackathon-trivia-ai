@@ -16,9 +16,10 @@ router.get("/wheel/items", async (req, res) => {
   }
 })
 
-router.get("/wheel/spin", async (req, res) => {
+router.post("/wheel/spin", async (req, res) => {
   try {
     const { internaluserId, items } = req.body
+    if (!internaluserId || !items) throw new APIError(commonLang["INVALID_INPUT"], 400, "VALIDATION_ERROR")
     const response = await wheelSpin(internaluserId, items)
     return res.status(200).send(response)
   } catch (error) {
@@ -36,12 +37,12 @@ router.get("/get/cards", async (req, res) => {
 })
 
 async function wheelItems() {
-  return Card.find({}, { name: 1, rarity: 1, spinWheelHistory: 1 })
+  return Card.find({}, { cardUi: 1, rarity: 1, spinWheelHistory: 1 })
     .lean()
     .then((result) => {
       const card = []
       for (let cards of result) {
-        card.push({ item: cards.name, type: "card", rarity: cards.rarity }) // Add each card as a 'card' type
+        card.push({ item: cards.cardUi.name, type: "card", rarity: cards.rarity }) // Add each card as a 'card' type
       }
 
       const gem = {
@@ -67,9 +68,9 @@ async function wheelItems() {
 async function retrieveCards() {
   try {
     const cards = []
-    const allCards = await Card.find({}, { name: 1, rarity: 1, spinWheelHistory: 1, limit: 1 })
+    const allCards = await Card.find({}, { cardUi: 1, rarity: 1, spinWheelHistory: 1, limit: 1 })
     for (let card of allCards) {
-      cards.push({ id: card._id, item: card.name, type: "card", rarity: card.rarity, limit: card.limit }) // Add each card as a 'card' type
+      cards.push({ id: card._id, item: card.cardUi.name, type: "card", rarity: card.rarity, limit: card.limit }) // Add each card as a 'card' type
     }
     return cards
   } catch (error) {

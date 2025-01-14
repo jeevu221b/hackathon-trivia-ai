@@ -13,6 +13,9 @@ const commonLang = {
   SESSION_ALREADY_COMPLETED: "Session is already completed",
   INVALID_SCORE: "Invalid score",
   INSUFFICIENT_GEMS: "You need more than 1 gem to spin the wheel",
+  AUTHENTICATION_ERROR: "Invalid token",
+  TOKEN_EXPIRED: "Token expired",
+  UNAUTH_ACCESS: "You're not authenticated :(",
 }
 
 module.exports = commonLang

@@ -28,11 +28,11 @@ app.use(logRequests)
 
 const nonAuthRoutes = ["/api/login", "/api/developer-login"]
 
-app.use((req, res, next) => {
+app.use(async (req, res, next) => {
   if (nonAuthRoutes.includes(req.url)) {
     next()
   } else {
-    decodeToken(req, res, next)
+    await decodeToken(req, res, next)
   }
 })
 

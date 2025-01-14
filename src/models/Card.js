@@ -1,14 +1,5 @@
 const mongoose = require("mongoose")
 
-// const card = {
-//   id: "card123",
-//   name: "Time Freeze",
-//   appliesTo: "opponent",
-//   type: "time-manipulator",
-//   ability: "add",
-//   value: 5,
-// }
-
 const limitSchema = new mongoose.Schema({
   minQuestions: {
     type: Number,
@@ -35,6 +26,15 @@ const valueSchema = new mongoose.Schema({
   score: {
     type: Number,
   },
+  option: {
+    type: Number,
+  },
+  retry: {
+    type: Number,
+  },
+  betPercentage: {
+    type: Number,
+  },
 })
 
 const cardUiSchema = new mongoose.Schema({
@@ -47,18 +47,23 @@ const cardUiSchema = new mongoose.Schema({
   },
   cooldown: {
     type: String,
+    default: "",
   },
   uses: {
     type: String,
+    default: "",
   },
   rarity: {
     type: String,
+    default: "",
   },
   backgroundColor: {
     type: String,
+    default: "",
   },
   imageName: {
     type: String,
+    default: "",
   },
 })
 
@@ -67,14 +72,6 @@ const CardSchema = new mongoose.Schema(
     cardUi: {
       type: cardUiSchema,
       required: true,
-
-      //        let name: String
-      //  let description: String
-      //  let cooldown: String
-      //  let uses: String
-      //  let rarity: String
-      //  let backgroundColor: Color
-      //  let imageName: String
     },
     name: {
       type: String,
@@ -101,7 +98,7 @@ const CardSchema = new mongoose.Schema(
     },
     abilityType: {
       type: String,
-      enum: ["time_manipulator", "score_manipulator"],
+      enum: ["time_manipulator", "score_manipulator", "option_remover", "retry", "bet"],
       required: true,
     },
     affectType: {
@@ -138,71 +135,5 @@ const CardSchema = new mongoose.Schema(
   },
   { timestamps: true }
 )
-
-// ChatGpt_Card_Chat - https://chatgpt.com/c/66e06d17-067c-8003-a9f6-2ec557a43645
-
-// const AbilitySchema = new mongoose.Schema({
-//   name: {
-//     type: String,
-//     required: true,
-//   },
-//   remove_options: {
-//     type: Number,
-//   },
-//   usageLimit: {
-//     type: Number, // Max number of times the card can be used
-//     default: null, // Unlimited usage if null
-//   },
-//   duration: {
-//     type: Number, // Time in seconds for which the card effect lasts (if applicable)
-//     default: null, // Null if duration does not apply
-//   },
-//   revealHint: {
-//     type: Boolean,
-//     default: false,
-//   },
-//   secondChance: {
-//     type: Boolean,
-//     default: false,
-//   },
-//   doublePoints: {
-//     type: Boolean,
-//     default: false,
-//   },
-// })
-
-// const UserCardsSchema = new mongoose.Schema(
-//   {
-//     userId: {
-//       type: mongoose.Schema.Types.ObjectId,
-//       ref: "User",
-//       required: true,
-//     },
-//     cards: [
-//       {
-//         cardId: {
-//           type: mongoose.Schema.Types.ObjectId,
-//           ref: "Card",
-//           required: true,
-//         },
-//         isOnCooldown: {
-//           type: Boolean,
-//           default: false,
-//         },
-//         cooldownEnd: {
-//           type: Date,
-//           default: null, // when the card can be used again
-//         },
-//         usesLeft: {
-//           type: Number, // optional limit to how many times a card can be used
-//           default: null,
-//         },
-//       },
-//     ],
-//   },
-//   { timestamps: true }
-// )
-
-// module.exports = mongoose.model("UserCards", UserCardsSchema)
 
 module.exports = mongoose.model("Card", CardSchema)
