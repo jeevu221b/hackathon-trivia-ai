@@ -26,7 +26,7 @@ function logRequests(req, res, next) {
 
 app.use(logRequests)
 
-const nonAuthRoutes = ["/api/login", "/api/developer-login"]
+const nonAuthRoutes = ["/api/login", "/api/developer-login", "/"]
 
 app.use(async (req, res, next) => {
   if (nonAuthRoutes.includes(req.url)) {
@@ -34,6 +34,11 @@ app.use(async (req, res, next) => {
   } else {
     await decodeToken(req, res, next)
   }
+})
+
+// Home route
+app.get("/", (req, res) => {
+  res.json({ message: "Backend is running" })
 })
 
 // Use the route files as middleware
