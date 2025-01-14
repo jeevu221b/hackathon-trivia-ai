@@ -1,6 +1,9 @@
 const jwt = require("jsonwebtoken")
-const { sleep } = require("./utils")
-const { getStreakMessage, roomUsersScore } = require("./helper")
+const { sleep, applyCard, emitActiveCards, emitPowerCards } = require("./utils")
+// eslint-disable-next-line no-unused-vars
+const { getStreakMessage, roomUsersScore, isCardApplierInRoom, updateCooldownStatuses, startCooldown } = require("./helper")
+const { getUserActiveCard } = require("../utils/helper")
+// const { useCard } = require("./helper")
 
 const sessions = {}
 const readyUsers = {}
@@ -19,7 +22,6 @@ function setupSocketIO(server) {
 
   io.on("connection", (socket) => {
     console.log(`************EVENT RECEIVED: new client connected **************** /n/n/n`)
-    console.log("TOKEN:", socket.handshake.headers.authorization)
     let decodedToken
     try {
       decodedToken = jwt.verify(socket.handshake.headers.authorization, "MY_SECRET_KEY")
@@ -30,30 +32,23 @@ function setupSocketIO(server) {
     }
     console.log("Decoded token:", decodedToken)
 
-    //find session where this users exists
     const sessionId = Object.keys(sessions).find((_id) => sessions[_id]?.users.find((user) => user.userId === decodedToken?.userId))
 
     console.log("Sessions", JSON.stringify(sessions))
     if (sessionId) {
       sessions[sessionId].users = sessions[sessionId]?.users.map((user) => {
         if (user.userId === decodedToken.userId) {
-          //user joins the socket room
           socket.join(sessionId)
           user.socketId = socket.id
           user.isOnline = true
         }
         return user
       })
-      //Send the session info to the reconnected user
-      console.log("Before emmiting reconnectUserr:::::::", sessions[sessionId].users)
       if (sessions[sessionId].gameStatus === "ready") {
         io.to(socket.id).emit("prepareForGame")
       }
-
-      // socket.emit("reconnectUser", sessions[idOfSession]);
       io.to(sessionId).emit("roomUsers", sessions[sessionId].users)
 
-      //@TO_DO: move it to the function
       if (sessions[sessionId].category) {
         socket.emit("partyData", {
           id: "category",
@@ -76,7 +71,7 @@ function setupSocketIO(server) {
         })
       }
     } else {
-      console.log("Before emittting socketConnected:::::::", socket.id)
+      console.log("Before emitting socketConnected:::::::", socket.id)
       io.to(socket.id).emit("socketConnected")
     }
 
@@ -87,7 +82,7 @@ function setupSocketIO(server) {
         console.log("Session ID is required")
         return
       }
-      // Leave all previous rooms
+
       socket.rooms.forEach((room) => {
         if (room !== socket.id) {
           socket.leave(room)
@@ -97,10 +92,10 @@ function setupSocketIO(server) {
       socket.join(sessionId)
       if (decodedToken) {
         if (!sessions[sessionId]) {
-          sessions[sessionId] = { users: [], round: 0, gameStatus: "notStarted" }
+          sessions[sessionId] = { users: [], round: 0, gameStatus: "notStarted", useCard: false, isPowerCard: false, powerCardUsedAt: null, cards: {} }
         }
 
-        const isHost = sessions[sessionId]?.users?.length === 0 ? true : false
+        const isHost = sessions[sessionId]?.users?.length === 0
         const user = {
           socketId: socket.id,
           userId: decodedToken?.userId,
@@ -113,7 +108,8 @@ function setupSocketIO(server) {
           answerState: "notAnswered",
           lastQuestionScore: 0,
           streak: { score: 0, index: 0, streakIndex: -1 },
-          isHost: isHost, // Set isHost flag accordingly
+          isHost: isHost,
+          card: await getUserActiveCard(decodedToken.userId),
         }
         const existingUserIndex1 = sessions[sessionId]?.users?.findIndex((data) => data.username == user.username)
         if (existingUserIndex1 < 0) {
@@ -166,8 +162,7 @@ function setupSocketIO(server) {
             value: sessions[sessionId].level.value,
           })
         }
-        console.log("Sessions: ", sessions[sessionId].users)
-        // io.to(sessionId).emit("roomUsers", rooms[sessionId]);
+        console.log("Sessions: ", sessions[sessionId])
         io.to(sessionId).emit("roomUsers", sessions[sessionId].users)
       }
     })
@@ -185,7 +180,6 @@ function setupSocketIO(server) {
           sessions[sessionId].users = sessions[sessionId]?.users.map((user) => (user.id === nextUser.id ? { ...user, isHost: true } : user))
         }
         sessions[sessionId].users = sessions[sessionId]?.users.filter((user) => user.userId !== decodedToken.userId)
-        //if user is the last user in the room, delete the room
       }
       console.log("At leave room: ", sessions[sessionId])
 
@@ -202,10 +196,8 @@ function setupSocketIO(server) {
       if (sessions[sessionId]) {
         readyUsers[sessionId] = readyUsers[sessionId] || []
         if (!readyUsers[sessionId].includes(decodedToken?.userId)) {
-          // If the user ID doesn't exist, push it to the array
           readyUsers[sessionId].push(decodedToken.userId)
         }
-        // let round = 0;
         let isGameCompleted = false
         let data_to_send = []
         let second_data_to_send = []
@@ -214,14 +206,12 @@ function setupSocketIO(server) {
         console.log(`loopRunning: ${isLoopRunning}`)
         if (readyUsers[sessionId].length == sessions[sessionId].users.length && !isLoopRunning) {
           isLoopRunning = true
-          // Reset the user's score and answer state
           sessions[sessionId].users = sessions[sessionId].users.map((user) => {
             data_to_send.push(
               roomUsersScore({
                 id: user.userId,
                 username: user.username,
                 score: 0,
-                // lastQuestionScore: user.lastQuestionScore,
                 isOnline: user.isOnline,
                 userId: user.userId,
                 answerState: "notAnswered",
@@ -248,6 +238,10 @@ function setupSocketIO(server) {
               io.to(sessionId).emit("allReady")
             }
 
+            sessions[sessionId] = await startCooldown(sessions[sessionId], index)
+            sessions[sessionId].users = await updateCooldownStatuses(sessions[sessionId].users)
+            sessions[sessionId].cards = await emitActiveCards(io, sessionId, sessions[sessionId], index)
+
             for (let i = 0; i < sessions[sessionId].users.length; i++) {
               sessions[sessionId].startedTime = 0
               sessions[sessionId].users[i].answerState = "notAnswered"
@@ -258,7 +252,6 @@ function setupSocketIO(server) {
                   id: sessions[sessionId].users[i].userId,
                   username: sessions[sessionId].users[i].username,
                   score: sessions[sessionId].users[i].score,
-                  // lastQuestionScore: sessions[sessionId].users[i].lastQuestionScore,
                   isOnline: sessions[sessionId].users[i].isOnline,
                   userId: sessions[sessionId].users[i].userId,
                   answerState: "notAnswered",
@@ -276,9 +269,8 @@ function setupSocketIO(server) {
             const waitTime = 30000
             const startTime = new Date().getTime()
 
-            console.log(`15 second timer started, ${new Date().toLocaleString()}`)
+            console.log(`30 second timer started, ${new Date().toLocaleString()}`)
             while (new Date().getTime() - startTime < waitTime) {
-              // break the while loop and for loop if no user exist in the session
               if (!sessions[sessionId] || !sessions[sessionId].users || sessions[sessionId].users.length === 0) {
                 console.log(`No users in the session, ${new Date().getTime()}`)
                 index = 10
@@ -287,6 +279,7 @@ function setupSocketIO(server) {
               const allAnswered = sessions[sessionId]?.users.every((user) => user.answerState != "notAnswered")
               if (allAnswered) {
                 console.log(`All users have answered${new Date().getTime()}`)
+                io.to("allHaveAnswered").emit("allAnswered")
                 await sleep(1400)
                 break
               }
@@ -297,6 +290,8 @@ function setupSocketIO(server) {
               isGameCompleted = true
             }
             console.log(`15 second timer ended, ${new Date().toLocaleString()}`)
+            io.to(sessionId).emit("roomUsers", sessions[sessionId])
+            // console.log(sessions[sessionId], "JEEVU IS WORKING")
           }
           console.log(`Round completed, cleaning up the session ${sessions[sessionId]}`)
           if (isGameCompleted) {
@@ -313,97 +308,98 @@ function setupSocketIO(server) {
 
     socket.on("gameStarted", async ({ sessionId }) => {
       console.log(`************EVENT RECEIVED: gameStarted for session ${sessionId} **************** /n/n/n`)
-      //prepareForGame emit the game to all the users
       readyUsers[sessionId] = []
       sessions[sessionId].gameStatus = "ready"
       io.to(sessionId).emit("prepareForGame")
       sessions[sessionId].hasPlayed = false
     })
 
-    socket.on("onAnswer", ({ sessionId, answer }) => {
+    socket.on("onAnswer", async ({ sessionId, answer }) => {
+      console.log(sessions[sessionId], "SESSIONS")
       console.log(`************EVENT RECEIVED: onAnswer for session ${sessionId} **************** /n/n/n`)
       console.log("USERS RECORD", sessions[sessionId].users)
+
       if (!answerOrder[sessionId]) {
-        answerOrder[sessionId] = {} // Initialize the answer order array for the session
+        answerOrder[sessionId] = {}
       }
       answerOrder[sessionId][decodedToken.userId] = {
         answer: answer,
         time: new Date().getTime(),
       }
 
-      // Assign scores based on the order of the answerOrder array
-      //compare  sessions[sessionId].currentQuestion.startedAt with the time of the answer
-      // create a multipler based on the time difference
-      // assign the score to the user
-      // let streakIndex = -1;
       let streakData
-      Object.keys(answerOrder[sessionId]).map((userId) => {
-        if (userId === decodedToken.userId) {
-          const user = sessions[sessionId].users.find((user) => user.userId === userId)
-          if (user) {
-            if (answer) {
-              let score
-              const timeDifference = answerOrder[sessionId][userId].time - sessions[sessionId].startedTime
-              //if time difference is less than 3 seconds, assign 10 points
-              if (timeDifference <= 8500) {
-                score = 30
-              } else if (timeDifference <= 11000) {
-                score = 23
-              } else if (timeDifference <= 14000) {
-                score = 19
-              } else if (timeDifference <= 20000) {
-                score = 15
-              } else if (timeDifference <= 24000) {
-                score = 11
-              } else if (timeDifference <= 27000) {
-                score = 8
-              } else {
-                score = 4
-              }
-              user.score += score
-              user.lastQuestionScore = score
-              if (score == 30) {
-                user.streak.index += 1
-              } else {
-                user.streak.index = 0
-                user.streak.streakIndex = -1
-              }
-              if (user.streak.index >= 3) {
-                user.streak.streakIndex += 1
-                streakData = getStreakMessage(user.streak.streakIndex, user.username)
-                streakData.userId = user.userId
-                console.log("<<<<<-------------STREAK DATA------------->>>>>", user.username, streakData)
-                io.to(sessionId).emit("streak", streakData)
-              }
+
+      // Use for...of instead of forEach to allow `await`
+      for (const user of sessions[sessionId].users) {
+        console.log(user, "USER")
+        if (user.userId === decodedToken.userId) {
+          if (answer) {
+            let score
+            const timeDifference = answerOrder[sessionId][decodedToken.userId].time - sessions[sessionId].startedTime
+            if (timeDifference <= 8500) {
+              score = 30
+            } else if (timeDifference <= 11000) {
+              score = 23
+            } else if (timeDifference <= 14000) {
+              score = 19
+            } else if (timeDifference <= 20000) {
+              score = 15
+            } else if (timeDifference <= 24000) {
+              score = 11
+            } else if (timeDifference <= 27000) {
+              score = 8
+            } else {
+              score = 4
             }
-            // Reset the streak if user answers incorrectly
-            if (!answerOrder[sessionId][userId].answer) {
+            user.score += score
+            user.lastQuestionScore = score
+
+            if (score === 30) {
+              user.streak.index += 1
+            } else {
               user.streak.index = 0
               user.streak.streakIndex = -1
             }
-            user.answerState = answerOrder[sessionId][userId].answer ? "correctlyAnswered" : "incorrectlyAnswered"
-          }
-        }
-      })
-      let data_to_send = []
 
-      for (let i = 0; i < sessions[sessionId].users.length; i++) {
+            if (user.streak.index >= 3) {
+              user.streak.streakIndex += 1
+              streakData = getStreakMessage(user.streak.streakIndex, user.username)
+              streakData.userId = user.userId
+              console.log("<<<<<-------------STREAK DATA------------->>>>>", user.username, streakData)
+              io.to(sessionId).emit("streak", streakData)
+            }
+            // sessions[sessionId].cards = await emitPowerCards(io, sessionId, sessions[sessionId], sessions[sessionId].currentIndex, user.userId)
+          } else {
+            // sessions[sessionId].cards = await emitPowerCards(io, sessionId, sessions[sessionId], sessions[sessionId].currentIndex, user.userId)
+          }
+          user.answerState = answer ? "correctlyAnswered" : "incorrectlyAnswered"
+          if (!answer) {
+            user.streak.index = 0
+            user.streak.streakIndex = -1
+          }
+          sessions[sessionId].cards = await emitPowerCards(io, sessionId, sessions[sessionId], sessions[sessionId].currentIndex, user.userId)
+        }
+      }
+
+      let data_to_send = []
+      sessions[sessionId].users.forEach((user) => {
         data_to_send.push(
           roomUsersScore({
-            id: sessions[sessionId].users[i].userId,
-            username: sessions[sessionId].users[i].username,
-            score: sessions[sessionId].users[i].score,
-            lastQuestionScore: sessions[sessionId].users[i].lastQuestionScore,
-            isOnline: sessions[sessionId].users[i].isOnline,
-            userId: sessions[sessionId].users[i].userId,
-            answerState: sessions[sessionId].users[i].answerState,
-            isMe: sessions[sessionId].users[i].userId === decodedToken.userId,
+            id: user.userId,
+            username: user.username,
+            score: user.score,
+            lastQuestionScore: user.lastQuestionScore,
+            isOnline: user.isOnline,
+            userId: user.userId,
+            answerState: user.answerState,
+            isMe: user.userId === decodedToken.userId,
+            card: user.card,
           })
         )
-      }
-      console.log("Before emtting roomUsersScore", data_to_send)
+      })
+
+      console.log("Before emitting roomUsersScorexxxx", data_to_send)
       io.to(sessionId).emit("roomUsersScore", data_to_send)
-      data_to_send = []
     })
 
     socket.on("updatePartyData", ({ id, name, value, sessionId }) => {
@@ -426,7 +422,6 @@ function setupSocketIO(server) {
               id: sessions[sessionId].users[i].userId,
               username: sessions[sessionId].users[i].username,
               score: sessions[sessionId].users[i].score,
-              // lastQuestionScore: sessions[sessionId].users[i].lastQuestionScore,
               isOnline: sessions[sessionId].users[i].isOnline,
               userId: sessions[sessionId].users[i].userId,
               answerState: "notAnswered",
@@ -437,6 +432,11 @@ function setupSocketIO(server) {
 
       console.log("Before emitting roomUsersScore", data_to_send)
       io.to(sessionId).emit("roomUsersScore", data_to_send)
+    })
+
+    socket.on("useCard", async (cardId, sessionId, currentUserId) => {
+      currentUserId = decodedToken.userId
+      sessions[sessionId] = await applyCard(cardId, currentUserId, sessions[sessionId], sessions[sessionId]?.currentIndex, io, sessionId)
     })
 
     socket.on("disconnect", () => {
@@ -450,9 +450,7 @@ function setupSocketIO(server) {
           const user = session.users[userIndex]
           const currentTime = new Date().getTime()
 
-          // Check if the user has been offline for at least 30 seconds
           if (currentTime - user.disconnectedAt >= 30000) {
-            // Call the ressignHost function
             const userId = user.userId
             if (user.isHost && sessions[sessionId]?.users.length > 1) {
               const nextUser = sessions[sessionId]?.users.find((user) => user.userId !== userId)
@@ -462,7 +460,6 @@ function setupSocketIO(server) {
             session.users.splice(userIndex, 1)
             console.log(`Removing user ${userSocketId} from session ${sessionId}`)
 
-            // Emit the updated user list
             console.log("Before Emitting roomUsers ::::::", session.users, " /n user:", user)
             io.to(sessionId).emit("roomUsers", session.users)
           }
@@ -475,7 +472,6 @@ function setupSocketIO(server) {
             user.isOnline = false
             user.disconnectedAt = new Date().getTime()
 
-            // Wait for 30 seconds before checking if the user is still offline
             setTimeout(() => handleUserDisconnect(sessionId, socket.id), 30000)
           }
           console.log("Session to disconnect", sessionId)
