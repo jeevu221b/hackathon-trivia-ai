@@ -20,6 +20,8 @@ const WeeklyLeaderboardWinners = require("../models/WeeklyLeaderboardWinners")
 const { metadataDefault } = require("../jobs/helper")
 const UserCards = require("../models/UserCards")
 const Card = require("../models/Card")
+const { APIError, sendAPIErrorResponse } = require("./errorHandler")
+const commonLang = require("../config/errorLang")
 
 env.config()
 
@@ -297,23 +299,24 @@ async function createFacts(subcategoryId, facts) {
   return updatedFactsDocument
 }
 
-function decodeToken(req, res, next) {
+async function decodeToken(req, res, next) {
   const token = req.headers.authorization
   if (!token) {
-    return res.status(500).send({ error: "You're not authenticated :(" })
+    return sendAPIErrorResponse(res, new APIError(commonLang["UNAUTH_ACCESS"], 401, "AUTHENTICATION_ERROR"))
   }
   try {
     const data = jwt.verify(token, process.env.SECRET_KEY)
     req.body.internaluserId = data.userId
+    const user = await User.findById(data.userId)
+    if (!user) {
+      throw new APIError("User not found", 404)
+    }
     next()
   } catch (error) {
     if (error.name === "TokenExpiredError") {
-      req.body.hasExpired = true
-      next()
-      return
-      // Handle expired token
+      return sendAPIErrorResponse(res, new APIError(commonLang["TOKEN_EXPIRED"], 401, "AUTHENTICATION_ERROR"))
     }
-    return res.status(500).send({ error: "Invalid token :(" })
+    return sendAPIErrorResponse(res, new APIError(commonLang["AUTHENTICATION_ERROR"], 401, "AUTHENTICATION_ERROR"))
   }
 }
 
@@ -356,6 +359,9 @@ async function getUserProfile(userId) {
     throw new Error("Invalid input")
   }
   const userInfo = await User.findOne({ _id: userId }).lean()
+  if (!userInfo) {
+    throw new Error("User not found")
+  }
   const userProfile = []
   let totalScore = 0
   let totalStars = 0
@@ -383,7 +389,7 @@ async function getUserProfile(userId) {
     gems: userInfo.gems,
     // title: config?.title || 0,
     title: config?.title ? config.title.concat(" ", getRankTier(totalScore, config.xp)) : 0,
-    spinWheelHistory: userInfo.spinWheelHistory,
+    spinWheelHistory: Array.isArray(userInfo?.spinWheelHistory) && userInfo.spinWheelHistory.length > 0 ? userInfo.spinWheelHistory : [], // Use the history if it exists and is an array; otherwise, default to an empty array,
     cards: await getAllUserCards(userId),
     // cards: [{
     //   is
